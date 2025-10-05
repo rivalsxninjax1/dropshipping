@@ -1,0 +1,181 @@
+{
+  "brand": "Dropshipper",
+  "nav": {
+    "home": "Home",
+    "orders": "Orders",
+    "wishlist": "Wishlist",
+    "profile": "Profile",
+    "addresses": "Addresses",
+    "products": "Products"
+  },
+  "search": {
+    "placeholder": "Search products...",
+    "quickLinks": "Popular searches"
+  },
+  "actions": {
+    "login": "Login",
+    "signup": "Sign up",
+    "logout": "Log out",
+    "continueShopping": "Continue shopping",
+    "viewOrders": "View orders",
+    "addToCart": "Add to cart",
+    "addToWishlist": "Add to wishlist",
+    "buyNow": "Buy now",
+    "apply": "Apply",
+    "reset": "Reset",
+    "save": "Save",
+    "edit": "Edit",
+    "delete": "Delete",
+    "continue": "Continue",
+    "back": "Back",
+    "loadMore": "Load more",
+    "cancel": "Cancel"
+  },
+  "theme": {
+    "light": "Light mode",
+    "dark": "Dark mode"
+  },
+  "language": {
+    "label": "Language",
+    "english": "English",
+    "nepali": "Nepali"
+  },
+  "status": {
+    "loading": "Loading",
+    "empty": "No items found",
+    "error": "Something went wrong"
+  },
+  "home": {
+    "hero": {
+      "title": "Your Shopify-style dropshipping HQ",
+      "subtitle": "Discover curated products, automated fulfilment, and localized payments in one beautiful storefront.",
+      "primaryCta": "Shop trending products",
+      "secondaryCta": "View categories"
+    },
+    "categories": "Shop by category",
+    "trending": "Trending now",
+    "newArrivals": "New arrivals",
+    "viewAll": "View all",
+    "features": {
+      "fastShipping": "Fast global shipping",
+      "securePayments": "Secure payments (Stripe, PayPal, eSewa, Khalti)",
+      "localized": "Localized experience in English & Nepali"
+    }
+  },
+  "filters": {
+    "title": "Filters",
+    "price": "Price",
+    "priceMin": "Min",
+    "priceMax": "Max",
+    "brand": "Brand",
+    "supplier": "Supplier",
+    "rating": "Rating",
+    "shipping": "Ships within (days)",
+    "inStock": "In stock only",
+    "sort": "Sort by",
+    "sortNewest": "Newest",
+    "sortPriceLow": "Price: Low to High",
+    "sortPriceHigh": "Price: High to Low",
+    "sortRating": "Rating"
+  },
+  "product": {
+    "sku": "SKU",
+    "share": "Share",
+    "shipping": "Shipping",
+    "shippingEta": "Estimated delivery",
+    "variants": "Variants",
+    "about": "About this product",
+    "specs": "Specifications",
+    "reviews": "Reviews",
+    "writeReview": "Write a review",
+    "related": "You may also like",
+    "media": {
+      "image": "Image",
+      "video": "Product video",
+      "ar": "360° view"
+    }
+  },
+  "cart": {
+    "title": "Shopping cart",
+    "empty": "Your cart is empty",
+    "subtotal": "Subtotal",
+    "shipping": "Shipping",
+    "tax": "Tax",
+    "total": "Total",
+    "checkout": "Checkout",
+    "guest": {
+      "title": "Checkout your way",
+      "description": "Sign in for a faster experience or continue as a guest.",
+      "continueAsGuest": "Continue as guest",
+      "signIn": "Sign in"
+    }
+  },
+  "checkout": {
+    "steps": ["Account", "Address", "Shipping", "Payment", "Review"],
+    "guest": {
+      "title": "Guest checkout",
+      "subtitle": "We will create a secure account so you can track your order.",
+      "email": "Email",
+      "password": "Password",
+      "name": "Full name",
+      "createAccount": "Create account",
+      "signInInstead": "Already have an account? Sign in"
+    },
+    "address": {
+      "shipping": "Shipping address",
+      "billing": "Billing address",
+      "useSaved": "Use saved address",
+      "newAddress": "Add new address",
+      "useSame": "Use same for billing"
+    },
+    "shipping": {
+      "standard": "Standard shipping",
+      "express": "Express shipping",
+      "free": "Free shipping"
+    },
+    "payment": {
+      "title": "Payment method",
+      "stripe": "Stripe",
+      "paypal": "PayPal",
+      "esewa": "eSewa",
+      "khalti": "Khalti",
+      "info": "All payments are processed securely."
+    },
+    "review": {
+      "title": "Review & confirm",
+      "placeOrder": "Place order",
+      "processing": "Processing payment…"
+    },
+    "errors": {
+      "shippingRequired": "Please provide a shipping address.",
+      "billingRequired": "Please provide a billing address.",
+      "addressRequired": "Please fill all required address fields."
+    }
+  },
+  "account": {
+    "title": "My account",
+    "profile": {
+      "title": "Profile",
+      "name": "Name",
+      "phone": "Phone",
+      "save": "Save profile"
+    },
+    "addresses": {
+      "title": "Saved addresses",
+      "add": "Add address",
+      "edit": "Edit address"
+    },
+    "wishlist": {
+      "title": "Wishlist",
+      "empty": "Save products you love to your wishlist."
+    },
+    "orders": {
+      "title": "Order history",
+      "status": "Status",
+      "paymentStatus": "Payment status",
+      "placed": "Placed",
+      "items": "Items",
+      "timeline": "Timeline"
+    }
+  }
+}

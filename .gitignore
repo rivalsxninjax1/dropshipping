@@ -1,0 +1,30 @@
+# General
+.DS_Store
+*.pyc
+__pycache__/
+.pytest_cache/
+.venv/
+venv/
+dist/
+build/
+node_modules/
+
+# Django
+staticfiles/
+media/
+*.sqlite3
+
+# env
+.env
+
+# VSCode
+.vscode/
+
+# Coverage
+.coverage
+htmlcov/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+

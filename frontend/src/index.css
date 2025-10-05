@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { scroll-behavior: smooth; }
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-background-50 text-neutral-800 font-sans antialiased;
+  }
+  ::selection {
+    @apply bg-primary-200 text-neutral-900;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-full bg-gradient-primary px-5 py-3 font-semibold text-white shadow-glow transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary-400 hover:scale-[1.02];
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-full border border-transparent bg-neutral-900 px-5 py-3 font-semibold text-white transition hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-neutral-800;
+  }
+  .glass-panel {
+    @apply rounded-3xl bg-gradient-glass shadow-glass backdrop-blur-xl;
+  }
+  .section-padding {
+    @apply py-16 sm:py-20 lg:py-24;
+  }
+  .section-heading {
+    @apply text-sm uppercase tracking-[0.3em] text-primary-600 font-semibold mb-3;
+  }
+  .headline {
+    @apply font-heading text-3xl sm:text-4xl lg:text-5xl leading-tight text-neutral-900;
+  }
+}
+
+@layer utilities {
+  .shadow-border {
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+  }
+}

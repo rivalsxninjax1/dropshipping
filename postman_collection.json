@@ -1,0 +1,49 @@
+{
+  "info": {
+    "name": "Dropshipper Payments + API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Products List",
+      "request": {"method": "GET", "url": "http://localhost:8000/api/products/"}
+    },
+    {
+      "name": "Cart Add",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\n  \"product_id\": 1,\n  \"quantity\": 1\n}"},
+        "url": "http://localhost:8000/api/cart/"
+      }
+    },
+    {
+      "name": "Checkout (eSewa)",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\n  \"shipping_address\": 1,\n  \"billing_address\": 1,\n  \"provider\": \"esewa\"\n}"},
+        "url": "http://localhost:8000/api/checkout/"
+      }
+    },
+    {
+      "name": "Webhook (simulate eSewa success)",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\n  \"provider\": \"esewa\",\n  \"order_id\": 1,\n  \"provider_payment_id\": \"esewa_ok_123\",\n  \"status\": \"success\"\n}"},
+        "url": "http://localhost:8000/api/payments/webhook/"
+      }
+    },
+    {
+      "name": "Admin Refund",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\n  \"amount\": \"10.00\"\n}"},
+        "url": "http://localhost:8000/api/admin/payments/1/refund/"
+      }
+    }
+  ]
+}
+

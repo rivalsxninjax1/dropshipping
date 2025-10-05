@@ -1,0 +1,13 @@
+{
+  "categories": [
+    {"name": "Cat A", "slug": "cat-a"},
+    {"name": "Cat B", "slug": "cat-b"}
+  ],
+  "suppliers": [
+    {"name": "Supplier A", "contact_email": "a@example.com"}
+  ],
+  "products": [
+    {"title": "Seed Product", "slug": "seed-product", "sku": "SEED-1", "base_price": "10.00", "category": "cat-a"}
+  ]
+}
+

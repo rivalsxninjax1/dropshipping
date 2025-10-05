@@ -1,0 +1,33 @@
+groups:
+  - name: dropshipper-alerts
+    rules:
+      - alert: High5xxRate
+        expr: sum(rate(django_http_requests_total_by_transport_total{status=~"5.."}[5m])) / sum(rate(django_http_requests_total_by_transport_total[5m])) > 0.05
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High 5xx error rate"
+          description: "More than 5% of requests are failing with 5xx."
+      - alert: PaymentWebhookFailures
+        expr: increase(payment_failures_total[10m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Payment webhook failures increasing"
+      - alert: SupplierSyncFailures
+        expr: increase(supplier_sync_failures_total[30m]) > 3
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Supplier sync failures detected"
+      - alert: CeleryQueueBacklog
+        expr: sum(celery_tasks_active) - sum(celery_tasks_succeeded) > 100
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Celery backlog high"
+
