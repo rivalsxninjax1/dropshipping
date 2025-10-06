@@ -7,6 +7,9 @@ import type {
   Order,
   Wishlist,
   Notification,
+  Bundle,
+  ContentPage,
+  Review,
 } from '../types/api'
 
 export async function fetchProducts(params: Record<string, any> = {}): Promise<Paginated<Product>> {
@@ -19,8 +22,18 @@ export async function fetchProduct(slug: string): Promise<Product> {
   return data
 }
 
+export async function fetchProductRecommendations(slug: string): Promise<Product[]> {
+  const { data } = await api.get(`/products/${slug}/recommendations/`)
+  return data
+}
+
 export async function fetchCategories(): Promise<Category[]> {
   const { data } = await api.get('/categories/')
+  return data.results ?? data
+}
+
+export async function fetchTrendingCategories(): Promise<Category[]> {
+  const { data } = await api.get('/categories/', { params: { trending: true } })
   return data.results ?? data
 }
 
@@ -54,7 +67,7 @@ export async function clearCart() {
   return data
 }
 
-export async function checkout(payload: { shipping_address: number; billing_address: number; provider?: string }) {
+export async function checkout(payload: { shipping_address: number; billing_address: number; provider?: string; coupon_code?: string; referral_code?: string }) {
   const { data } = await api.post('/checkout/', payload)
   return data as { order_id: number; payment_intent: PaymentIntent }
 }
@@ -124,4 +137,49 @@ export async function fetchNotifications(): Promise<Paginated<Notification>> {
 
 export async function markNotificationsRead(ids: number[]) {
   await api.post('/notifications/mark-read/', { ids })
+}
+
+export async function fetchBundles(params: Record<string, any> = {}): Promise<Paginated<Bundle>> {
+  const { data } = await api.get('/bundles/', { params })
+  return data
+}
+
+export async function fetchBundle(slug: string): Promise<Bundle> {
+  const { data } = await api.get(`/bundles/${slug}/`)
+  return data
+}
+
+export async function fetchContentPage(slug: string): Promise<ContentPage> {
+  const { data } = await api.get(`/pages/${slug}/`)
+  return data
+}
+
+export async function trackOrder(payload: { order_id: number | string; email: string }): Promise<Order> {
+  const { data } = await api.post('/order-tracking/', payload)
+  return data
+}
+
+export async function fetchSavedForLater(): Promise<Array<{ product: Product; quantity: number }>> {
+  const { data } = await api.get('/cart/save-for-later/')
+  return data.items ?? []
+}
+
+export async function saveForLater(product_id: number) {
+  const { data } = await api.post('/cart/save-for-later/', { product_id })
+  return data.items ?? []
+}
+
+export async function removeFromSaved(product_id: number) {
+  const { data } = await api.delete('/cart/save-for-later/', { data: { product_id } })
+  return data.items ?? []
+}
+
+export async function submitReview(form: FormData): Promise<Review> {
+  const { data } = await api.post('/reviews/', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+  return data
+}
+
+export async function fetchReviews(productId: number): Promise<Paginated<Review>> {
+  const { data } = await api.get('/reviews/', { params: { product: productId } })
+  return data
 }

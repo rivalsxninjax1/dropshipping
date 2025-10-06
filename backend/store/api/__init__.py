@@ -17,6 +17,9 @@ from .admin import (  # noqa: F401
     AdminSupplierViewSet,
     AdminOrderViewSet,
     AdminCouponViewSet,
+    AdminCategoryViewSet,
+    AdminBundleViewSet,
+    AdminContentPageViewSet,
 )
 
 # Re-export legacy views until they are refactored
@@ -24,9 +27,13 @@ from ..views import (  # noqa: F401
     OrdersViewSet,
     ReviewsViewSet,
     SupplierViewSet,
+    BundleViewSet,
+    ContentPageViewSet,
     CartView,
+    CartSaveForLaterView,
     CartClearView,
     CheckoutView,
+    OrderTrackingView,
     PaymentsWebhookView,
     PaymentsVerifyView,
     PaymentRefundView,

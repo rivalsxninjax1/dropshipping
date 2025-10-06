@@ -30,6 +30,9 @@ const AdminCampaigns = React.lazy(() => import('./pages/Admin/Campaigns'))
 const Search = React.lazy(() => import('./pages/Search'))
 const PaymentSuccess = React.lazy(() => import('./pages/PaymentSuccess'))
 const PaymentFailure = React.lazy(() => import('./pages/PaymentFailure'))
+const ReturnPolicy = React.lazy(() => import('./pages/ReturnPolicy'))
+const OrderTracking = React.lazy(() => import('./pages/OrderTracking'))
+const BundleDetail = React.lazy(() => import('./pages/BundleDetail'))
 const DesignSystem = React.lazy(() => import('./pages/design-system'))
 
 const qc = new QueryClient()
@@ -56,6 +59,9 @@ export default function App() {
                 <Route path="/contact" element={<Contact />} />
                 <Route path="/payment/success" element={<PaymentSuccess />} />
                 <Route path="/payment/failure" element={<PaymentFailure />} />
+                <Route path="/policies/returns" element={<ReturnPolicy />} />
+                <Route path="/track-order" element={<OrderTracking />} />
+                <Route path="/bundles/:slug" element={<BundleDetail />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
                 <Route path="/account" element={<AccountProfile />} />

@@ -6,10 +6,15 @@ from .api import (
     OrdersViewSet,
     AddressesViewSet,
     ReviewsViewSet,
+    BundleViewSet,
+    ContentPageViewSet,
     AdminProductViewSet,
     AdminSupplierViewSet,
     AdminOrderViewSet,
     AdminCouponViewSet,
+    AdminCategoryViewSet,
+    AdminBundleViewSet,
+    AdminContentPageViewSet,
     AdminMetricsView,
     AdminLowStockView,
     WishlistViewSet,
@@ -17,8 +22,10 @@ from .api import (
     NotificationViewSet,
     ReturnRequestViewSet,
     CartView,
+    CartSaveForLaterView,
     CartClearView,
     CheckoutView,
+    OrderTrackingView,
     PaymentsWebhookView,
     PaymentsVerifyView,
     PaymentRefundView,
@@ -37,6 +44,8 @@ router.register(r"categories", CategoryViewSet, basename="category")
 router.register(r"orders", OrdersViewSet, basename="order")
 router.register(r"addresses", AddressesViewSet, basename="address")
 router.register(r"reviews", ReviewsViewSet, basename="review")
+router.register(r"bundles", BundleViewSet, basename="bundle")
+router.register(r"pages", ContentPageViewSet, basename="content-page")
 router.register(r"wishlist", WishlistViewSet, basename="wishlist")
 router.register(r"coupons", CouponViewSet, basename="coupon")
 router.register(r"notifications", NotificationViewSet, basename="notification")
@@ -47,6 +56,9 @@ admin_router.register(r"products", AdminProductViewSet, basename="admin-products
 admin_router.register(r"suppliers", AdminSupplierViewSet, basename="admin-suppliers")
 admin_router.register(r"orders", AdminOrderViewSet, basename="admin-orders")
 admin_router.register(r"coupons", AdminCouponViewSet, basename="admin-coupons")
+admin_router.register(r"categories", AdminCategoryViewSet, basename="admin-categories")
+admin_router.register(r"bundles", AdminBundleViewSet, basename="admin-bundles")
+admin_router.register(r"pages", AdminContentPageViewSet, basename="admin-pages")
 
 
 api_urlpatterns = [
@@ -56,8 +68,10 @@ api_urlpatterns = [
     path("admin/low-stock/", AdminLowStockView.as_view(), name="admin-low-stock"),
     path("admin/payments/<int:pk>/refund/", PaymentRefundView.as_view(), name="payment-refund"),
     path("cart/", CartView.as_view(), name="cart"),
+    path("cart/save-for-later/", CartSaveForLaterView.as_view(), name="cart-save-for-later"),
     path("cart/clear/", CartClearView.as_view(), name="cart-clear"),
     path("checkout/", CheckoutView.as_view(), name="checkout"),
+    path("order-tracking/", OrderTrackingView.as_view(), name="order-track"),
     path("payments/webhook/", PaymentsWebhookView.as_view(), name="payments-webhook"),
     path("payments/verify/", PaymentsVerifyView.as_view(), name="payments-verify"),
     path("search/suggestions/", SearchSuggestionsView.as_view(), name="search-suggestions"),

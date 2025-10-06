@@ -1,11 +1,17 @@
 import { useEffect } from 'react'
-import { ShoppingBagIcon, ChatBubbleBottomCenterTextIcon } from '@heroicons/react/24/outline'
+import { ShoppingBagIcon, ChatBubbleBottomCenterTextIcon, PhoneArrowDownLeftIcon } from '@heroicons/react/24/outline'
 import { motion, AnimatePresence } from 'framer-motion'
 import Button from './Button'
 import { useUIStore } from '../store/ui'
 import { useCartStore } from '../store/cart'
 import { useQuery } from '@tanstack/react-query'
 import { getCart } from '../api'
+
+const whatsappNumber = import.meta.env.VITE_CHAT_WHATSAPP as string | undefined
+const viberNumber = import.meta.env.VITE_CHAT_VIBER as string | undefined
+
+const buildWhatsAppLink = (number: string) => `https://wa.me/${number.replace(/[^0-9]/g, '')}`
+const buildViberLink = (number: string) => `viber://chat?number=${encodeURIComponent(number)}`
 
 export default function FloatingActions() {
   const openCart = useUIStore(s => s.openCart)
@@ -29,22 +35,42 @@ export default function FloatingActions() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.95 }}
             transition={{ duration: 0.25 }}
-            className="w-64 rounded-3xl bg-white p-4 shadow-glass ring-1 ring-neutral-100"
+            className="w-72 rounded-3xl bg-white p-4 shadow-glass ring-1 ring-neutral-100 dark:bg-neutral-900 dark:ring-neutral-800"
           >
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100 text-primary-600">💬</div>
-              <div>
-                <p className="text-sm font-semibold text-neutral-900">Need help?</p>
-                <p className="text-xs text-neutral-500">Our stylists respond in under 2 minutes.</p>
+              <div className="text-sm text-neutral-600">
+                <p className="font-semibold text-neutral-900 dark:text-neutral-100">Need sizing or delivery help?</p>
+                <p className="text-xs text-neutral-500">Chat directly on WhatsApp or Viber.</p>
               </div>
             </div>
-            <textarea
-              className="mt-3 w-full resize-none rounded-2xl border border-neutral-200 bg-neutral-50 p-2 text-sm focus:border-primary-300 focus:outline-none"
-              rows={3}
-              placeholder="Ask anything about sizing, shipping, or styling"
-            />
-            <div className="mt-3 flex justify-end">
-              <Button size="sm" onClick={toggleChat}>Send</Button>
+            <div className="mt-4 space-y-2">
+              {whatsappNumber && (
+                <Button
+                  as="a"
+                  size="sm"
+                  href={buildWhatsAppLink(whatsappNumber)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2"
+                >
+                  <ChatBubbleBottomCenterTextIcon className="h-4 w-4" /> WhatsApp
+                </Button>
+              )}
+              {viberNumber && (
+                <Button
+                  as="a"
+                  variant="outline"
+                  size="sm"
+                  href={buildViberLink(viberNumber)}
+                  className="flex items-center justify-center gap-2 border-violet-400 text-violet-500 hover:bg-violet-50"
+                >
+                  <PhoneArrowDownLeftIcon className="h-4 w-4" /> Viber
+                </Button>
+              )}
+              {!whatsappNumber && !viberNumber && (
+                <p className="text-xs text-neutral-500">Set `VITE_CHAT_WHATSAPP` or `VITE_CHAT_VIBER` to enable chat shortcuts.</p>
+              )}
             </div>
           </motion.div>
         )}

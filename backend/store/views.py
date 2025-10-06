@@ -2,21 +2,25 @@ from __future__ import annotations
 
 import csv
 import io
+import os
 import uuid
 from datetime import timedelta
 from decimal import Decimal
-from typing import Dict
+from typing import Dict, List
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.db.models import Avg, F, IntegerField
+from django.db.models import Avg, F, IntegerField, Count, Q
 from django.db.models.functions import Coalesce
+from django.core.cache import cache
 from django.shortcuts import get_object_or_404
 from django.utils.text import slugify
 from django.utils import timezone
 from rest_framework import viewsets, mixins, status
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.core import signing
@@ -30,11 +34,18 @@ from .models import (
     Order,
     OrderItem,
     Review,
+    ReviewMedia,
     Address,
     Coupon,
     CouponRedemption,
     OrderStatusEvent,
     Notification,
+    Bundle,
+    BundleItem,
+    ProductVariant,
+    SizeGuide,
+    ContentPage,
+    Wishlist,
 )
 from .permissions import IsAdminOrReadOnly, IsAdmin, IsOwner
 from .serializers import (
@@ -44,15 +55,18 @@ from .serializers import (
     SupplierSerializer,
     OrderSerializer,
     ReviewCreateSerializer,
+    ReviewSerializer,
     UserSerializer,
     RegisterSerializer,
     AddressSerializer,
+    BundleSerializer,
+    ContentPageSerializer,
 )
 from .payments.base import get_gateway
 from .models import Payment as PaymentModel
 from .tasks import auto_forward_order_to_supplier, sync_supplier_products
 from .metrics import PAYMENT_FAILURES
-from .services.cart import CartService
+from .services.cart import CartService, SavedCartService
 from .emails import send_order_notification
 import requests
 
@@ -71,7 +85,8 @@ class ProductViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.
     def get_queryset(self):
         return (
             Product.objects.filter(is_deleted=False, active=True)
-            .select_related("category", "supplier")
+            .select_related("category", "supplier", "category__size_guide")
+            .prefetch_related("variants")
             .annotate(
                 avg_rating=Avg("reviews__rating"),
                 stock_qty=Coalesce(F("inventory__quantity"), 0, output_field=IntegerField()),
@@ -79,7 +94,50 @@ class ProductViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.
             .order_by("-created_at")
         )
 
+    @action(detail=True, methods=["get"], permission_classes=[AllowAny], url_path="recommendations")
+    def recommendations(self, request, slug=None, *args, **kwargs):
+        product = self.get_object()
+        base_qs = self.get_queryset()
+        related = (
+            base_qs.filter(order_items__order__items__product=product)
+            .exclude(id=product.id)
+            .annotate(freq=Count("order_items__id"))
+            .order_by("-freq", "-avg_rating")
+        )
+        if not related.exists():
+            related = base_qs.filter(category=product.category).exclude(id=product.id).order_by("-avg_rating", "-created_at")
+        serializer = self.get_serializer(related[:8], many=True)
+        return Response(serializer.data)
 
+
+class BundleViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+    queryset = Bundle.objects.filter(active=True).prefetch_related(
+        "items__product__variants",
+        "items__product__category",
+        "items__product__supplier",
+    )
+    serializer_class = BundleSerializer
+    permission_classes = [AllowAny]
+    lookup_field = "slug"
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        bundle_type = self.request.query_params.get("type")
+        if bundle_type:
+            qs = qs.filter(bundle_type=bundle_type)
+        now = timezone.now()
+        qs = qs.filter(
+            Q(starts_at__isnull=True) | Q(starts_at__lte=now),
+            Q(ends_at__isnull=True) | Q(ends_at__gte=now),
+        )
+        return qs.order_by("-created_at")
+
+
+class ContentPageViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+    queryset = ContentPage.objects.filter(is_active=True)
+    serializer_class = ContentPageSerializer
+    permission_classes = [AllowAny]
+    lookup_field = "slug"
 class CategoryViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     queryset = Category.objects.all().order_by("name")
     serializer_class = CategorySerializer
@@ -141,13 +199,48 @@ class AdminProductViewSet(viewsets.ModelViewSet):
         return Response({"status": "sync triggered"}, status=202)
 
 
-class ReviewsViewSet(mixins.CreateModelMixin, viewsets.GenericViewSet):
-    queryset = Review.objects.all()
-    serializer_class = ReviewCreateSerializer
-    permission_classes = [IsAuthenticated]
+class ReviewsViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, viewsets.GenericViewSet):
+    queryset = Review.objects.all().select_related("product", "user").prefetch_related("media")
+    permission_classes = [AllowAny]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get_permissions(self):
+        if self.request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            return [IsAuthenticated()]
+        return [AllowAny()]
+
+    def get_serializer_class(self):
+        if self.request.method in ("GET", "HEAD"):
+            return ReviewSerializer
+        return ReviewCreateSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        product_id = self.request.query_params.get("product")
+        if product_id:
+            qs = qs.filter(product_id=product_id)
+        return qs.order_by("-created_at")
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        product = serializer.validated_data["product"]
+        verified = self._is_verified_purchase(self.request.user, product)
+        review = serializer.save(user=self.request.user, verified_purchase=verified)
+        for image in self.request.FILES.getlist("images"):
+            ReviewMedia.objects.create(review=review, image=image)
+        self._serializer_instance = review
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        instance = getattr(self, "_serializer_instance", None) or serializer.instance
+        data = ReviewSerializer(instance).data if instance else {}
+        return Response(data, status=status.HTTP_201_CREATED, headers=headers)
+
+    @staticmethod
+    def _is_verified_purchase(user, product):
+        return OrderItem.objects.filter(order__user=user, product=product, order__status__in=[Order.Status.PAID, Order.Status.PROCESSING, Order.Status.SHIPPED, Order.Status.DELIVERED]).exists()
 
 
 class OrdersViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.UpdateModelMixin, viewsets.GenericViewSet):
@@ -165,6 +258,26 @@ class OrdersViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.Upd
         if not request.user.is_staff:
             return Response({"detail": "Forbidden"}, status=403)
         return super().partial_update(request, *args, **kwargs)
+
+
+class OrderTrackingView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        order_id = request.data.get("order_id")
+        email = (request.data.get("email") or "").strip().lower()
+        if not order_id or not email:
+            return Response({"detail": "order_id and email are required"}, status=status.HTTP_400_BAD_REQUEST)
+        order = (
+            Order.objects.select_related("user", "shipping_address", "billing_address", "coupon", "referral_coupon")
+            .prefetch_related("items__product", "events", "return_requests")
+            .filter(id=order_id, user__email__iexact=email)
+            .first()
+        )
+        if not order:
+            return Response({"detail": "No matching order"}, status=status.HTTP_404_NOT_FOUND)
+        data = OrderSerializer(order).data
+        return Response(data)
 
 
 class AddressesViewSet(mixins.ListModelMixin, mixins.CreateModelMixin, mixins.UpdateModelMixin, mixins.DestroyModelMixin, viewsets.GenericViewSet):
@@ -233,15 +346,73 @@ class CartView(APIView):
         return self.get(request)
 
 
+class CartSaveForLaterView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response(self._payload(request))
+
+    def post(self, request):
+        try:
+            product_id = int(request.data.get("product_id"))
+        except (TypeError, ValueError):
+            return Response({"detail": "product_id required"}, status=status.HTTP_400_BAD_REQUEST)
+        cart = CartService.get(request)
+        qty = cart.pop(product_id, None)
+        if qty is None:
+            return Response({"detail": "Item not in cart"}, status=status.HTTP_400_BAD_REQUEST)
+        CartService.set(request, cart)
+        saved = SavedCartService.get(request)
+        saved[product_id] = qty
+        SavedCartService.set(request, saved)
+        if getattr(request, "user", None) and request.user.is_authenticated:
+            wishlist, _ = Wishlist.objects.get_or_create(user=request.user)
+            wishlist.products.add(product_id)
+        return Response(self._payload(request), status=status.HTTP_201_CREATED)
+
+    def delete(self, request):
+        try:
+            product_id = int(request.data.get("product_id"))
+        except (TypeError, ValueError):
+            return Response({"detail": "product_id required"}, status=status.HTTP_400_BAD_REQUEST)
+        saved = SavedCartService.get(request)
+        if product_id in saved:
+            saved.pop(product_id)
+            SavedCartService.set(request, saved)
+        return Response(self._payload(request))
+
+    def _payload(self, request):
+        saved = SavedCartService.get(request)
+        ids = list(saved.keys())
+        try:
+            ids = [int(pid) for pid in ids]
+        except ValueError:
+            ids = [int(pid) for pid in saved.keys() if str(pid).isdigit()]
+        products = (
+            Product.objects.filter(id__in=ids, active=True, is_deleted=False)
+            .select_related("category", "supplier", "category__size_guide")
+            .prefetch_related("variants")
+            .annotate(
+                avg_rating=Avg("reviews__rating"),
+                stock_qty=Coalesce(F("inventory__quantity"), 0, output_field=IntegerField()),
+            )
+        )
+        serialized = {product.id: ProductSerializer(product).data for product in products}
+        items = [
+            {"product": serialized.get(int(pid)), "quantity": qty}
+            for pid, qty in saved.items()
+            if serialized.get(int(pid))
+        ]
+        return {"items": items}
+
+
 class CartClearView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
         # Clear current cart (user or guest) and also clear any guest cart by cookie
-        try:
-            cache.delete(CartService._key(request))
-        except Exception:
-            pass
+        CartService.clear(request)
+        SavedCartService.clear(request)
         cookie_key = request.COOKIES.get(CartService.COOKIE_NAME)
         if cookie_key:
             try:
@@ -323,19 +494,21 @@ class CheckoutView(APIView):
             max_shipping_days = max(max_shipping_days, product.shipping_time_max_days)
 
         coupon_code = (request.data.get("coupon_code") or request.data.get("coupon") or "").strip()
+        referral_code = (request.data.get("referral_code") or "").strip()
         applied_coupon = None
+        referral_coupon = None
         discount_amount = Decimal("0.00")
+
         if coupon_code:
-            applied_coupon = Coupon.objects.filter(code__iexact=coupon_code, is_active=True).first()
+            applied_coupon = Coupon.objects.filter(code__iexact=coupon_code, is_active=True, is_referral=False).first()
             if not applied_coupon:
                 return Response({"detail": "Invalid coupon"}, status=400)
             if applied_coupon.expires_at and timezone.now() > applied_coupon.expires_at:
                 return Response({"detail": "Coupon expired"}, status=400)
             if applied_coupon.min_order_total and total < applied_coupon.min_order_total:
                 return Response({"detail": "Order total does not meet coupon minimum"}, status=400)
-            if applied_coupon.usage_limit:
-                if applied_coupon.redemptions.count() >= applied_coupon.usage_limit:
-                    return Response({"detail": "Coupon usage limit reached"}, status=400)
+            if applied_coupon.usage_limit and applied_coupon.redemptions.count() >= applied_coupon.usage_limit:
+                return Response({"detail": "Coupon usage limit reached"}, status=400)
             if applied_coupon.per_user_limit and applied_coupon.redemptions.filter(user=user).count() >= applied_coupon.per_user_limit:
                 return Response({"detail": "Coupon already redeemed"}, status=400)
             if applied_coupon.discount_type == Coupon.DiscountType.PERCENT:
@@ -344,7 +517,27 @@ class CheckoutView(APIView):
                 discount_amount = Decimal(applied_coupon.value)
             discount_amount = min(discount_amount, total).quantize(Decimal("0.01"))
 
-        payable_total = (total - discount_amount).quantize(Decimal("0.01"))
+        if referral_code:
+            if coupon_code and referral_code.lower() == coupon_code.lower():
+                return Response({"detail": "Referral code must differ from coupon"}, status=400)
+            referral_coupon = Coupon.objects.filter(code__iexact=referral_code, is_active=True, is_referral=True).first()
+            if not referral_coupon:
+                return Response({"detail": "Invalid referral code"}, status=400)
+            if referral_coupon.expires_at and timezone.now() > referral_coupon.expires_at:
+                return Response({"detail": "Referral code expired"}, status=400)
+            if referral_coupon.usage_limit and referral_coupon.redemptions.count() >= referral_coupon.usage_limit:
+                return Response({"detail": "Referral code limit reached"}, status=400)
+            if referral_coupon.per_user_limit and referral_coupon.redemptions.filter(user=user).count() >= referral_coupon.per_user_limit:
+                return Response({"detail": "Referral already used"}, status=400)
+            referral_discount = Decimal("0.00")
+            if referral_coupon.discount_type == Coupon.DiscountType.PERCENT:
+                referral_discount = total * referral_coupon.value / Decimal("100")
+            else:
+                referral_discount = Decimal(referral_coupon.value)
+            referral_discount = min(referral_discount, total).quantize(Decimal("0.01"))
+            discount_amount += referral_discount
+
+        payable_total = max(total - discount_amount, Decimal("0.00")).quantize(Decimal("0.01"))
 
         order.total_amount = payable_total
         order.discount_amount = discount_amount
@@ -352,6 +545,9 @@ class CheckoutView(APIView):
         if applied_coupon:
             order.coupon = applied_coupon
             update_fields.append("coupon")
+        if referral_coupon:
+            order.referral_coupon = referral_coupon
+            update_fields.append("referral_coupon")
         if max_shipping_days:
             order.estimated_delivery_at = timezone.now() + timedelta(days=max_shipping_days)
         order.save(update_fields=update_fields)
@@ -364,8 +560,36 @@ class CheckoutView(APIView):
 
         # Clear cart after checkout
         CartService.set(request, {})
+        SavedCartService.set(request, {})
 
         provider = (request.data.get("provider") or "esewa").lower()
+
+        if provider == "cod":
+            PaymentModel.objects.create(
+                order=order,
+                provider=PaymentModel.Provider.COD,
+                provider_payment_id=f"cod_{order.id}_{uuid.uuid4().hex[:6]}",
+                amount=order.total_amount,
+                status=PaymentModel.Status.PENDING,
+                raw_response={"method": "cod"},
+            )
+            order.status = Order.Status.PROCESSING
+            order.payment_status = Order.PaymentStatus.PENDING
+            order.save(update_fields=["status", "payment_status"])
+            OrderStatusEvent.objects.create(order=order, status=Order.Status.PROCESSING, note="Awaiting COD delivery")
+            send_order_notification(order)
+            return Response(
+                {
+                    "order_id": order.id,
+                    "payment_intent": {
+                        "provider": provider,
+                        "status": "pending",
+                        "message": "Cash on delivery selected. Please prepare exact change at delivery.",
+                    },
+                },
+                status=201,
+            )
+
         try:
             gateway = get_gateway(provider)
         except Exception as exc:
@@ -511,6 +735,8 @@ class PaymentsVerifyView(APIView):
                 OrderStatusEvent.objects.create(order=order, status=Order.Status.PAID, note="Payment verified")
                 if order.coupon:
                     CouponRedemption.objects.get_or_create(order=order, coupon=order.coupon, user=order.user)
+                if order.referral_coupon:
+                    CouponRedemption.objects.get_or_create(order=order, coupon=order.referral_coupon, user=order.user)
                 Notification.objects.create(
                     user=order.user,
                     notification_type=Notification.Type.ORDER_UPDATE,
@@ -581,6 +807,8 @@ class PaymentsWebhookView(APIView):
             OrderStatusEvent.objects.create(order=order, status=Order.Status.PAID, note="Gateway webhook")
             if order.coupon:
                 CouponRedemption.objects.get_or_create(order=order, coupon=order.coupon, user=order.user)
+            if order.referral_coupon:
+                CouponRedemption.objects.get_or_create(order=order, coupon=order.referral_coupon, user=order.user)
             Notification.objects.create(
                 user=order.user,
                 notification_type=Notification.Type.ORDER_UPDATE,
@@ -691,4 +919,12 @@ class CartMergeView(APIView):
             merged[pid] = merged.get(pid, 0) + qty
         cache.set(user_cache_key, merged, timeout=60 * 60 * 24 * 7)
         cache.delete(guest_cache_key)
+
+        guest_saved_key = f"{guest_cache_key}{SavedCartService.SUFFIX}"
+        user_saved_key = SavedCartService._key(request)
+        guest_saved = cache.get(guest_saved_key) or {}
+        user_saved = cache.get(user_saved_key) or {}
+        saved_merged = {**guest_saved, **user_saved}
+        cache.set(user_saved_key, saved_merged, timeout=60 * 60 * 24 * 7)
+        cache.delete(guest_saved_key)
         return Response({"merged": True, "items": merged})

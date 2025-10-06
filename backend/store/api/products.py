@@ -5,6 +5,7 @@ from __future__ import annotations
 These views delegate heavy lifting to repositories/services for clarity.
 """
 
+from django.db.models import Count
 from rest_framework import viewsets, mixins
 from rest_framework.permissions import AllowAny, IsAdminUser
 from ..serializers import ProductSerializer, ProductWriteSerializer
@@ -38,6 +39,21 @@ class ProductViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.
 
     def get_queryset(self):
         return ProductRepository.get_active_products_queryset().order_by("-created_at")
+
+    @action(detail=True, methods=["get"], permission_classes=[AllowAny], url_path="recommendations")
+    def recommendations(self, request, slug=None):
+        product = self.get_object()
+        base_qs = ProductRepository.get_active_products_queryset()
+        related = (
+            base_qs.filter(order_items__order__items__product=product)
+            .exclude(id=product.id)
+            .annotate(freq=Count("order_items__id"))
+            .order_by("-freq", "-avg_rating")
+        )
+        if not related.exists():
+            related = base_qs.filter(category=product.category).exclude(id=product.id).order_by("-avg_rating", "-created_at")
+        serializer = self.get_serializer(related[:8], many=True)
+        return Response(serializer.data)
 
 
 class AdminProductViewSet(viewsets.ModelViewSet):

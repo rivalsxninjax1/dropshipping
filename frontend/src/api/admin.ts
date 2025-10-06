@@ -1,4 +1,5 @@
 import { api } from './client'
+import type { Category, Bundle, ContentPage } from '../types/api'
 
 export async function fetchAdminMetrics() {
   const { data } = await api.get('/admin/metrics/')
@@ -57,4 +58,48 @@ export async function updateAdminCoupon(id: number, payload: Record<string, unkn
 
 export async function deleteAdminCoupon(id: number) {
   await api.delete(`/admin/coupons/${id}/`)
+}
+
+export async function fetchAdminCategories() {
+  const { data } = await api.get('/admin/categories/')
+  return data
+}
+
+export async function updateAdminCategory(id: number, payload: Partial<Category>) {
+  const { data } = await api.patch(`/admin/categories/${id}/`, payload)
+  return data
+}
+
+export async function createAdminCategory(payload: Partial<Category>) {
+  const { data } = await api.post('/admin/categories/', payload)
+  return data
+}
+
+export async function fetchAdminBundles(params: Record<string, unknown> = {}) {
+  const { data } = await api.get('/admin/bundles/', { params })
+  return data
+}
+
+export async function updateAdminBundle(id: number, payload: Partial<Bundle>) {
+  const { data } = await api.patch(`/admin/bundles/${id}/`, payload)
+  return data
+}
+
+export async function createAdminBundle(payload: Partial<Bundle>) {
+  const { data } = await api.post('/admin/bundles/', payload)
+  return data
+}
+
+export async function deleteAdminBundle(id: number) {
+  await api.delete(`/admin/bundles/${id}/`)
+}
+
+export async function fetchAdminPages() {
+  const { data } = await api.get('/admin/pages/')
+  return data
+}
+
+export async function updateAdminPage(id: number, payload: Partial<ContentPage>) {
+  const { data } = await api.patch(`/admin/pages/${id}/`, payload)
+  return data
 }

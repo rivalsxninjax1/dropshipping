@@ -1,17 +1,19 @@
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { AxiosError } from 'axios'
-import { fetchProduct, addToCart, fetchProducts, addToWishlist } from '../api'
+import { fetchProduct, addToCart, fetchProducts, addToWishlist, fetchProductRecommendations, fetchReviews, submitReview } from '../api'
 import ProductGallery from '../components/ProductGallery'
+import Modal from '../components/Modal'
 import { track } from '../analytics'
 import Button from '../components/Button'
 import ProductCard from '../components/ProductCard'
 import { useToast } from '../components/Toast'
 import { useUIStore } from '../store/ui'
 import { useTranslation } from 'react-i18next'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react'
 import { useAuthStore } from '../store/auth'
 import { convertUsdToNpr, formatNpr, formatUsdAsNpr } from '../utils/currency'
+import type { ProductVariant, Review, Paginated } from '../types/api'
 
 export default function ProductDetail() {
   const { slug } = useParams()
@@ -41,6 +43,18 @@ export default function ProductDetail() {
     queryFn: () => fetchProducts({ category: product?.category?.slug, page_size: 8 })
   })
 
+  const recommendations = useQuery({
+    enabled: Boolean(slug),
+    queryKey: ['recommendations', slug],
+    queryFn: () => fetchProductRecommendations(slug!),
+  })
+
+  const reviewsQuery = useQuery({
+    enabled: Boolean(product?.id),
+    queryKey: ['reviews', product?.id],
+    queryFn: () => fetchReviews(product!.id),
+  })
+
   const add = useMutation({
     mutationFn: (vars: { id: number; qty: number }) => addToCart(vars.id, vars.qty),
     onSuccess: () => {
@@ -56,12 +70,64 @@ export default function ProductDetail() {
     onError: () => toast.notify(t('status.error')),
   })
 
-  const variantOptions = useMemo(() => {
-    const raw = (product?.attributes as any)?.variants
-    if (Array.isArray(raw)) return raw
-    return []
-  }, [product])
+  const reviewMutation = useMutation({
+    mutationFn: (form: FormData) => submitReview(form),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reviews', product?.id] })
+      setReviewModalOpen(false)
+      setReviewComment('')
+      setReviewFiles([])
+      setReviewRating(5)
+      toast.notify(t('product.reviewSubmitted', { defaultValue: 'Review submitted for moderation.' }))
+    },
+    onError: () => toast.notify(t('status.error')),
+  })
+
+  const variantOptions = useMemo(() => product?.variants ?? [], [product?.variants])
+  const variantLabel = (variant: ProductVariant) => {
+    const parts = [variant.size, variant.color].filter(Boolean)
+    if (parts.length === 0) return variant.sku || t('product.variant', { defaultValue: 'Variant' })
+    return parts.join(' · ')
+  }
   const [selectedVariant, setSelectedVariant] = useState<string>('')
+  useEffect(() => {
+    if (!variantOptions.length) {
+      setSelectedVariant('')
+      return
+    }
+    const defaultVariant = variantOptions.find(v => v.is_default) || variantOptions[0]
+    setSelectedVariant(variantLabel(defaultVariant))
+  }, [product?.id, variantOptions])
+  const [reviewModalOpen, setReviewModalOpen] = useState(false)
+  const [reviewRating, setReviewRating] = useState(5)
+  const [reviewComment, setReviewComment] = useState('')
+  const [reviewFiles, setReviewFiles] = useState<File[]>([])
+  const [showSizeGuide, setShowSizeGuide] = useState(false)
+
+  const handleReviewSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!product) return
+    if (!isAuthenticated) {
+      toast.notify(t('auth.loginRequired', { defaultValue: 'Please sign in to leave a review.' }))
+      return
+    }
+    const formData = new FormData()
+    formData.append('product', String(product.id))
+    formData.append('rating', String(reviewRating))
+    formData.append('comment', reviewComment)
+    reviewFiles.forEach(file => formData.append('images', file))
+    reviewMutation.mutate(formData)
+  }
+
+  const handleReviewFiles = (event: ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files) return
+    setReviewFiles(Array.from(event.target.files).slice(0, 3))
+  }
+
+  const renderStars = (rating: number) => {
+    const rounded = Math.round(rating)
+    return '★'.repeat(rounded) + '☆'.repeat(5 - rounded)
+  }
   const [mediaTab, setMediaTab] = useState<'images' | 'video' | 'ar'>('images')
 
   const galleryImages = useMemo(() => {
@@ -77,6 +143,11 @@ export default function ProductDetail() {
     }
     return `${product.shipping_time_min_days} - ${product.shipping_time_max_days} days`
   }, [product?.shipping_time_min_days, product?.shipping_time_max_days, t])
+
+  const reviews = useMemo(() => {
+    if (!reviewsQuery.data) return [] as Review[]
+    return (reviewsQuery.data as Paginated<Review>).results ?? (reviewsQuery.data as any)
+  }, [reviewsQuery.data])
 
   const attributeEntries = useMemo(() => {
     if (!product?.attributes || typeof product.attributes !== 'object') {
@@ -168,6 +239,7 @@ export default function ProductDetail() {
   }
 
   return (
+    <>
     <div className="bg-neutral-50 pb-16 dark:bg-neutral-950">
       <nav className="border-b bg-white/90 backdrop-blur-sm dark:border-neutral-800 dark:bg-neutral-900/90">
         <ol className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-3 text-xs font-medium text-neutral-500">
@@ -275,11 +347,27 @@ export default function ProductDetail() {
             </article>
 
             <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-50">{t('product.reviews')}</h2>
-                <button className="text-sm font-medium text-primary-600 hover:underline">
-                  {t('product.writeReview')}
-                </button>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-50">{t('product.reviews')}</h2>
+                  <p className="text-sm text-neutral-500">
+                    {t('product.reviewSummary', {
+                      defaultValue: '{{count}} verified reviews',
+                      count: reviews.length,
+                    })}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {isAuthenticated ? (
+                    <Button variant="ghost" size="sm" onClick={() => setReviewModalOpen(true)}>
+                      {t('product.writeReview')}
+                    </Button>
+                  ) : (
+                    <Link to="/login" className="text-sm text-primary-600 hover:underline">
+                      {t('product.signInToReview', { defaultValue: 'Sign in to review' })}
+                    </Link>
+                  )}
+                </div>
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-neutral-600 dark:text-neutral-300">
                 <div className="flex items-center gap-2 text-2xl font-semibold text-neutral-900 dark:text-white">
@@ -288,37 +376,63 @@ export default function ProductDetail() {
                 </div>
                 <p>{t('product.trustBadge', { defaultValue: 'Trusted by thousands of happy customers worldwide.' })}</p>
               </div>
-              <div className="mt-6 grid gap-4 text-sm text-neutral-600 dark:text-neutral-300 sm:grid-cols-2">
-                <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-800/40">
-                  <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{t('product.shippingExperience', { defaultValue: 'Shipping experience' })}</h3>
-                  <p className="mt-2 leading-relaxed">{t('product.shippingExperienceCopy', { defaultValue: 'Fast, tracked shipping with live notifications and flexible delivery options.' })}</p>
-                </div>
-                <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-800/40">
-                  <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{t('product.qualityAssurance', { defaultValue: 'Quality assurance' })}</h3>
-                  <p className="mt-2 leading-relaxed">{t('product.qualityAssuranceCopy', { defaultValue: 'Each item is inspected against a 32‑point checklist to ensure flawless quality.' })}</p>
-                </div>
+              <div className="mt-6 space-y-4 text-sm text-neutral-600 dark:text-neutral-300">
+                {reviewsQuery.isLoading ? (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {Array.from({ length: 2 }).map((_, idx) => (
+                      <div key={idx} className="h-32 animate-pulse rounded-xl bg-neutral-100 dark:bg-neutral-800" />
+                    ))}
+                  </div>
+                ) : reviews.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-neutral-200 p-6 text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
+                    {t('product.noReviews', { defaultValue: 'No reviews yet. Be the first to share your experience.' })}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {reviews.map(review => (
+                      <article key={review.id} className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-800/40">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">{renderStars(review.rating)}</div>
+                          {review.verified_purchase && <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">{t('product.verifiedPurchase', { defaultValue: 'Verified purchase' })}</span>}
+                        </div>
+                        {review.comment && <p className="mt-2 text-sm leading-relaxed">{review.comment}</p>}
+                        {review.media && review.media.length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {review.media.map(media => (
+                              <img key={media.id} src={media.image} alt={media.alt_text || product.title} className="h-16 w-16 rounded-lg object-cover" loading="lazy" />
+                            ))}
+                          </div>
+                        )}
+                        <div className="mt-2 text-xs text-neutral-400">{new Date(review.created_at).toLocaleDateString()}</div>
+                      </article>
+                    ))}
+                  </div>
+                )}
               </div>
             </section>
           </section>
 
           <aside className="space-y-6 lg:sticky lg:top-28 lg:self-start">
-            <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-md shadow-primary-500/5 dark:border-neutral-800 dark:bg-neutral-900">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-primary-600">{t('product.priceLabel', { defaultValue: 'Your price' })}</p>
-                  <p className="mt-1 text-3xl font-bold text-neutral-900 dark:text-white">{priceDisplay}</p>
+              <div className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-md shadow-primary-500/5 dark:border-neutral-800 dark:bg-neutral-900">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-primary-600">{t('product.priceLabel', { defaultValue: 'Your price' })}</p>
+                    <p className="mt-1 text-3xl font-bold text-neutral-900 dark:text-white">{priceDisplay}</p>
+                    {product.urgency_copy && (
+                      <p className="mt-2 text-sm font-semibold text-red-600 dark:text-red-400">{product.urgency_copy}</p>
+                    )}
+                  </div>
+                  <div className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold uppercase text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                    {t('product.inStock', { defaultValue: 'In stock' })}
+                  </div>
                 </div>
-                <div className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold uppercase text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
-                  {t('product.inStock', { defaultValue: 'In stock' })}
-                </div>
-              </div>
 
               {variantOptions.length > 0 && (
                 <div className="mt-6">
                   <h3 className="text-xs uppercase tracking-wide text-neutral-500">{t('product.variants')}</h3>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {variantOptions.map((variant: any) => {
-                      const label = String(variant.label || variant.name || variant)
+                    {variantOptions.map(variant => {
+                      const label = variantLabel(variant)
                       const isActive = selectedVariant === label
                       return (
                         <button
@@ -335,6 +449,32 @@ export default function ProductDetail() {
                       )
                     })}
                   </div>
+                </div>
+              )}
+
+              {product.size_fit_notes && (
+                <div className="mt-6 space-y-2 rounded-2xl border border-primary-100 bg-primary-50/60 p-4 text-sm text-primary-800 dark:border-primary-500/40 dark:bg-primary-500/10 dark:text-primary-200">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-semibold uppercase tracking-[0.2em]">{t('product.sizeFit', { defaultValue: 'Size & fit guide' })}</h4>
+                    {product.size_guide && (
+                      <button
+                        type="button"
+                        onClick={() => setShowSizeGuide(prev => !prev)}
+                        className="text-xs font-medium text-primary-600 hover:underline dark:text-primary-300"
+                      >
+                        {showSizeGuide ? t('actions.hide', { defaultValue: 'Hide' }) : t('actions.view', { defaultValue: 'View' })}
+                      </button>
+                    )}
+                  </div>
+                  <p>{product.size_fit_notes}</p>
+                  {showSizeGuide && product.size_guide && (
+                    <div className="space-y-2 rounded-xl bg-white/70 p-3 text-xs text-neutral-600 shadow-inner dark:bg-neutral-900/60 dark:text-neutral-300">
+                      <div dangerouslySetInnerHTML={{ __html: product.size_guide.content.replace(/\n/g, '<br />') }} />
+                      {product.size_guide.measurement_image && (
+                        <img src={product.size_guide.measurement_image} alt={product.size_guide.headline} className="mt-2 w-full rounded-lg border border-neutral-100 dark:border-neutral-700" loading="lazy" />
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -420,6 +560,25 @@ export default function ProductDetail() {
           />
         </section>
 
+        {(recommendations.isLoading || (recommendations.data && recommendations.data.length > 0)) && (
+          <section className="mt-14 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-neutral-900 dark:text-neutral-50">{t('product.peopleAlsoBought', { defaultValue: 'People also bought…' })}</h2>
+                <p className="text-sm text-neutral-500">{t('product.peopleAlsoBoughtCopy', { defaultValue: 'Frequently paired by customers after purchasing this item.' })}</p>
+              </div>
+            </div>
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {(recommendations.data ?? []).map(item => (
+                <ProductCard key={item.id} product={item} />
+              ))}
+              {recommendations.isLoading && Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="h-44 animate-pulse rounded-xl border border-dashed border-neutral-200 bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800" />
+              ))}
+            </div>
+          </section>
+        )}
+
         <section className="mt-14 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
           <div className="flex items-center justify-between">
             <div>
@@ -441,6 +600,51 @@ export default function ProductDetail() {
         </section>
       </div>
     </div>
+    
+    <Modal open={reviewModalOpen} onClose={() => setReviewModalOpen(false)} title={t('product.writeReview')}>
+        <form className="space-y-4" onSubmit={handleReviewSubmit}>
+          <div className="space-y-1">
+            <label className="text-xs font-medium uppercase tracking-wide text-neutral-500" htmlFor="rating">{t('product.rating')}</label>
+            <select
+              id="rating"
+              className="w-full rounded border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
+              value={reviewRating}
+              onChange={e => setReviewRating(Number(e.target.value))}
+            >
+              {[5, 4, 3, 2, 1].map(score => (
+                <option key={score} value={score}>{score} {t('product.stars', { defaultValue: 'stars' })}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium uppercase tracking-wide text-neutral-500" htmlFor="comment">{t('product.comment')}</label>
+            <textarea
+              id="comment"
+              value={reviewComment}
+              onChange={e => setReviewComment(e.target.value)}
+              rows={4}
+              className="w-full rounded border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-800"
+              placeholder={t('product.reviewPlaceholder', { defaultValue: 'Tell shoppers about sizing, quality, and delivery.' })}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium uppercase tracking-wide text-neutral-500" htmlFor="photos">{t('product.addPhotos', { defaultValue: 'Add photos (optional)' })}</label>
+            <input id="photos" type="file" multiple accept="image/*" onChange={handleReviewFiles} className="block w-full text-sm" />
+            {reviewFiles.length > 0 && (
+              <div className="flex gap-2 text-xs text-neutral-500">
+                {reviewFiles.map(file => (
+                  <span key={file.name} className="rounded bg-neutral-100 px-2 py-1 dark:bg-neutral-800">{file.name}</span>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" type="button" onClick={() => setReviewModalOpen(false)}>{t('actions.cancel')}</Button>
+            <Button type="submit" disabled={reviewMutation.isPending}>{reviewMutation.isPending ? t('status.loading') : t('actions.submit')}</Button>
+          </div>
+        </form>
+      </Modal>
+    </>
   )
 }
 

@@ -33,6 +33,7 @@ _GATEWAYS: Dict[str, str] = {
     "khalti": "store.payments.khalti.KhaltiGateway",
     "stripe": "store.payments.stripe.StripeGateway",
     "paypal": "store.payments.paypal.PayPalGateway",
+    "cod": "store.payments.cod.CODGateway",
 }
 
 

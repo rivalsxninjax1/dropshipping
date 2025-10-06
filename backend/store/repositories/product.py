@@ -23,7 +23,8 @@ class ProductRepository:
         """
         return (
             Product.objects.filter(is_deleted=False, active=True)
-            .select_related("category", "supplier")
+            .select_related("category", "category__size_guide", "supplier")
+            .prefetch_related("variants")
             .annotate(
                 avg_rating=Avg("reviews__rating"),
                 stock_qty=Coalesce(F("inventory__quantity"), 0, output_field=IntegerField()),
@@ -62,4 +63,3 @@ class ProductRepository:
             .values_list("sku", flat=True)[:limit]
         )
         return titles + skus
-

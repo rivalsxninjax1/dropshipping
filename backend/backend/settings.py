@@ -91,6 +91,13 @@ if env("USE_SQLITE_FOR_TESTS") or "PYTEST_CURRENT_TEST" in os.environ:
             "NAME": BASE_DIR / "db.sqlite3",
         }
     }
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        }
+    }
+    CELERY_BROKER_URL = "memory://"
+    CELERY_RESULT_BACKEND = "cache+memory://"
 else:
     postgres_host = env("POSTGRES_HOST", default="localhost")
     # When running inside Docker the db service is reachable via hostname `db`
@@ -180,18 +187,19 @@ REST_FRAMEWORK = {
 
 
 # Celery
-CELERY_BROKER_URL = env("CELERY_BROKER_URL", default=env("REDIS_URL", default="redis://localhost:6379/0"))
-CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default="redis://localhost:6379/1")
+CELERY_BROKER_URL = CELERY_BROKER_URL if 'CELERY_BROKER_URL' in locals() else env("CELERY_BROKER_URL", default=env("REDIS_URL", default="redis://localhost:6379/0"))
+CELERY_RESULT_BACKEND = CELERY_RESULT_BACKEND if 'CELERY_RESULT_BACKEND' in locals() else env("CELERY_RESULT_BACKEND", default="redis://localhost:6379/1")
 CELERY_TIMEZONE = TIME_ZONE
 
 
 # Redis cache (optional)
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": env("REDIS_URL", default="redis://localhost:6379/0"),
+if "PYTEST_CURRENT_TEST" not in os.environ and not env("USE_SQLITE_FOR_TESTS"):
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": env("REDIS_URL", default="redis://localhost:6379/0"),
+        }
     }
-}
 
 
 # Email

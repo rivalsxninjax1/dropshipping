@@ -29,7 +29,8 @@ export default function Checkout() {
   const [stepIndex, setStepIndex] = useState<number>(isAuthenticated ? 1 : 0)
   const [shipping, setShipping] = useState<any | null>(null)
   const [billing, setBilling] = useState<any | null>(null)
-  const [provider, setProvider] = useState<'stripe' | 'paypal' | 'esewa' | 'khalti'>('stripe')
+  const [provider, setProvider] = useState<'stripe' | 'paypal' | 'esewa' | 'khalti' | 'cod'>('esewa')
+  const [referralCode, setReferralCode] = useState('')
   const [useExisting, setUseExisting] = useState<boolean>(true)
   const [useSame, setUseSame] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
@@ -93,7 +94,8 @@ export default function Checkout() {
     mutationFn: () => checkout({
       shipping_address: useExisting ? shipping?.id ?? shipping : shipping,
       billing_address: useSame ? (useExisting ? (billing?.id ?? shipping) : (billing ?? shipping)) : (useExisting ? (billing?.id ?? billing) : billing),
-      provider
+      provider,
+      referral_code: referralCode || undefined,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['cart'] })
@@ -272,8 +274,22 @@ export default function Checkout() {
                 <PaymentOption label={t('checkout.payment.paypal')} active={provider === 'paypal'} onSelect={() => setProvider('paypal')} icon={<PayPalIcon />} />
                 <PaymentOption label={t('checkout.payment.esewa')} active={provider === 'esewa'} onSelect={() => setProvider('esewa')} icon={<ESewaIcon />} />
                 <PaymentOption label={t('checkout.payment.khalti')} active={provider === 'khalti'} onSelect={() => setProvider('khalti')} icon={<KhaltiIcon />} />
+                <PaymentOption label={t('checkout.payment.cod', { defaultValue: 'Cash on delivery (inside valley + COD-ready locations)' })} active={provider === 'cod'} onSelect={() => setProvider('cod')} icon={<CodIcon />} />
               </div>
-              <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-300">{t('checkout.payment.info')}</p>
+              <div className="mt-4 space-y-3 text-sm text-neutral-600 dark:text-neutral-300">
+                <p>{t('checkout.payment.info')}</p>
+                <div className="rounded-lg border border-dashed border-neutral-200 p-3 dark:border-neutral-700">
+                  <label htmlFor="referral" className="text-xs font-semibold uppercase tracking-wide text-neutral-500">{t('checkout.referral.label', { defaultValue: 'Referral / influencer code' })}</label>
+                  <input
+                    id="referral"
+                    value={referralCode}
+                    onChange={event => setReferralCode(event.target.value)}
+                    placeholder={t('checkout.referral.placeholder', { defaultValue: 'e.g. STYLIST10' })}
+                    className="mt-1 w-full rounded border border-neutral-200 px-3 py-2 text-sm focus:border-primary-400 focus:outline-none dark:border-neutral-700 dark:bg-neutral-800"
+                  />
+                  <p className="mt-1 text-xs text-neutral-500">{t('checkout.referral.help', { defaultValue: 'Apply influencer-specific codes to support your favourite creators.' })}</p>
+                </div>
+              </div>
               <div className="mt-4 flex justify-between text-sm text-neutral-500 dark:text-neutral-300">
                 <button onClick={() => setStepIndex(stepIndex - 1)} className="hover:underline">{t('actions.back')}</button>
                 <Button onClick={() => setStepIndex(4)}>{t('actions.continue')}</Button>
@@ -321,6 +337,7 @@ export default function Checkout() {
             <div className="mt-3 space-y-1">
               <div className="flex justify-between"><span>{t('cart.subtotal')}</span><span>{formatPrice(subtotal)}</span></div>
               <div className="flex justify-between"><span>{t('cart.shipping')}</span><span>{formatPrice(shippingCost)}</span></div>
+              {referralCode && <div className="flex justify-between text-xs text-neutral-500"><span>{t('checkout.referral.summary', { defaultValue: 'Referral code' })}</span><span>{referralCode.toUpperCase()}</span></div>}
               <div className="flex justify-between"><span>{t('cart.tax')}</span><span>{formatPrice(tax)}</span></div>
               <div className="flex justify-between border-t pt-2 font-semibold dark:border-neutral-700"><span>{t('cart.total')}</span><span>{formatPrice(total)}</span></div>
             </div>
@@ -456,5 +473,11 @@ const KhaltiIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" className="h-6 w-6">
     <rect x="6" y="6" width="52" height="52" rx="8" fill="#5b2d91" />
     <text x="32" y="40" textAnchor="middle" fontSize="22" fontWeight="700" fill="#fff">K</text>
+  </svg>
+)
+const CodIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" className="h-6 w-6">
+    <rect x="6" y="6" width="52" height="52" rx="10" fill="#facc15" />
+    <text x="32" y="39" textAnchor="middle" fontSize="18" fontWeight="700" fill="#1f2937">COD</text>
   </svg>
 )

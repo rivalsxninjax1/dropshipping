@@ -13,6 +13,24 @@ export type Supplier = {
   active: boolean
 }
 
+export type ProductVariant = {
+  id: number
+  size: string | null
+  color: string | null
+  sku: string | null
+  price_modifier: string
+  stock: number
+  position: number
+  is_default: boolean
+}
+
+export type SizeGuide = {
+  headline: string
+  content: string
+  measurement_image: string | null
+  updated_at: string
+}
+
 export type Product = {
   id: number
   title: string
@@ -30,6 +48,11 @@ export type Product = {
   category: Category
   supplier: Supplier | null
   avg_rating?: number | null
+  stock_qty?: number | null
+  size_fit_notes?: string | null
+  variants?: ProductVariant[]
+  size_guide?: SizeGuide | null
+  urgency_copy?: string | null
   created_at: string
   updated_at: string
 }
@@ -39,6 +62,8 @@ export type Review = {
   product: number
   rating: number
   comment: string
+  verified_purchase: boolean
+  media: Array<{ id: number; image: string; alt_text: string; created_at: string }>
   created_at: string
 }
 
@@ -60,6 +85,10 @@ export type Coupon = {
   usage_limit: number
   is_active: boolean
   expires_at: string | null
+  is_referral: boolean
+  influencer_name: string | null
+  influencer_handle: string | null
+  referral_url: string | null
 }
 
 export type OrderStatusEvent = {
@@ -88,6 +117,7 @@ export type Order = {
   total_amount: string
   discount_amount?: string
   coupon?: Coupon | null
+  referral_coupon?: Coupon | null
   shipping_address: number
   billing_address: number
   shipping_method?: string
@@ -120,6 +150,42 @@ export type Wishlist = {
   user: number
   items: WishlistItem[]
   created_at: string
+  updated_at: string
+}
+
+export type BundleItem = {
+  id: number
+  product: Product
+  quantity: number
+  position: number
+  extended_price: string
+}
+
+export type Bundle = {
+  id: number
+  title: string
+  slug: string
+  description: string
+  tagline: string
+  hero_image: string | null
+  bundle_type: 'curated' | 'limited_drop' | 'top_picks'
+  discount_percent: string
+  discount_amount: string
+  starts_at: string | null
+  ends_at: string | null
+  countdown_ends_at: string | null
+  active: boolean
+  items: BundleItem[]
+  base_price: string
+  final_price: string
+}
+
+export type ContentPage = {
+  id: number
+  slug: string
+  title: string
+  body: string
+  hero_image: string | null
   updated_at: string
 }
 

@@ -81,8 +81,30 @@ class KhaltiGateway(PaymentGateway):
         token = payload.get("token")
         pidx = payload.get("pidx")
         provider_payment_id = payload.get("provider_payment_id") or pidx or token
+        
+        # Verify signature if present in headers
+        signature_valid = False
+        if self.SECRET_KEY and "X-Khalti-Signature" in headers:
+            try:
+                # Verify HMAC signature using SHA256
+                raw_payload = str(payload)
+                expected_signature = hmac.new(
+                    self.SECRET_KEY.encode(),
+                    raw_payload.encode(),
+                    hashlib.sha256
+                ).hexdigest()
+                received_signature = headers.get("X-Khalti-Signature")
+                signature_valid = hmac.compare_digest(expected_signature, received_signature)
+                
+                # If signature is present but invalid, reject the webhook
+                if not signature_valid:
+                    return False, {"status": "invalid_signature", "provider_payment_id": provider_payment_id}
+            except Exception:
+                # If signature verification fails, continue with API verification
+                pass
 
         ok = False
+        response_data = {}
         # Try API verification if we have credentials and enough context
         if self.SECRET_KEY:
             try:
@@ -103,26 +125,41 @@ class KhaltiGateway(PaymentGateway):
                             timeout=20,
                         )
                         ok = resp.status_code in (200, 201)
+                        if ok:
+                            try:
+                                response_data = resp.json()
+                            except Exception:
+                                response_data = {}
                 elif pidx:
                     # Lookup using pidx (ePayment)
                     resp = requests.post(self.LOOKUP_URL, json={"pidx": pidx}, headers=self._headers(), timeout=20)
                     if resp.status_code in (200, 201):
-                        data = {}
                         try:
-                            data = resp.json()
+                            response_data = resp.json()
                         except Exception:
-                            data = {}
-                        state = (data.get("status") or data.get("state") or "").lower()
+                            response_data = {}
+                        state = (response_data.get("status") or response_data.get("state") or "").lower()
                         ok = state in ("completed", "success", "succeeded", "paid")
             except Exception:
                 # If API verification fails (network, parse, etc.), fall back below
                 ok = False
 
         # Fallback: trust webhook-reported status when API verification isn't possible
-        if not ok:
+        # Only if signature is valid or we couldn't verify the signature
+        if not ok and (signature_valid or "X-Khalti-Signature" not in headers):
             ok = status in ("success", "succeeded", "paid") and bool(provider_payment_id)
 
-        return ok, {"status": "succeeded" if ok else status, "provider_payment_id": provider_payment_id}
+        result = {
+            "status": "succeeded" if ok else status,
+            "provider_payment_id": provider_payment_id,
+            "signature_verified": signature_valid,
+        }
+        
+        # Include additional data from API response if available
+        if response_data:
+            result["transaction_details"] = response_data
+            
+        return ok, result
 
     def handle_refund(self, order, amount):
         return {"status": "refunded", "reference": f"khalti_ref_{order.id}"}

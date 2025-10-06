@@ -17,11 +17,14 @@ class CartService:
     def _key(cls, request) -> str:
         if getattr(request, "user", None) and request.user.is_authenticated:
             return f"{CART_CACHE_PREFIX}user:{request.user.id}"
-        key = request.COOKIES.get(cls.COOKIE_NAME) or request.headers.get("X-Cart-Key")
+        cached = getattr(request, "_cart_cache_token", None)
+        key = cached or request.COOKIES.get(cls.COOKIE_NAME) or request.headers.get("X-Cart-Key")
         if not key:
             from uuid import uuid4
 
             key = f"guest:{uuid4().hex}"
+        if not cached:
+            setattr(request, "_cart_cache_token", key)
         return f"{CART_CACHE_PREFIX}{key}"
 
     @classmethod
@@ -40,3 +43,10 @@ class CartService:
         except Exception:
             pass
 
+
+class SavedCartService(CartService):
+    SUFFIX = ":saved"
+
+    @classmethod
+    def _key(cls, request) -> str:
+        return super()._key(request) + cls.SUFFIX

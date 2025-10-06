@@ -29,6 +29,7 @@ export default function Cart() {
   const isAuthenticated = !!useAuthStore(s => s.accessToken)
   const { data } = useQuery<CartResponse>({ queryKey: ['cart'], queryFn: getCart })
   const items = data?.items ?? []
+  const saved = useQuery({ queryKey: ['saved'], queryFn: fetchSavedForLater })
 
   const update = useMutation({
     mutationFn: ({ id, qty }: { id: number; qty: number }) => updateCart(id, qty),
@@ -80,6 +81,30 @@ export default function Cart() {
     onSettled: () => qc.invalidateQueries({ queryKey: ['cart'] }),
   })
 
+  const saveMutation = useMutation({
+    mutationFn: (productId: number) => saveForLater(productId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['cart'] })
+      qc.invalidateQueries({ queryKey: ['saved'] })
+    },
+  })
+
+  const removeSavedMutation = useMutation({
+    mutationFn: (productId: number) => removeFromSaved(productId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['saved'] }),
+  })
+
+  const moveSavedToCart = useMutation({
+    mutationFn: async ({ id, qty }: { id: number; qty: number }) => {
+      await addToCart(id, qty)
+      await removeFromSaved(id)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['cart'] })
+      qc.invalidateQueries({ queryKey: ['saved'] })
+    },
+  })
+
   const apiTotal = data?.total ? Number(data.total) : null
   const subtotal = apiTotal ?? items.reduce((sum: number, it: CartEntry) => sum + Number(it.unit_price) * it.quantity, 0)
   const shipping = items.length ? 5 : 0
@@ -121,7 +146,7 @@ export default function Cart() {
                     <div className="text-sm text-neutral-600 dark:text-neutral-300">{formatPrice(it.unit_price)}</div>
                     <div className="text-xs text-neutral-400">{t('product.sku')}: {it.product.sku}</div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <label className="sr-only" htmlFor={`qty_${it.product.id}`}>Quantity</label>
                     <input
                       id={`qty_${it.product.id}`}
@@ -135,19 +160,62 @@ export default function Cart() {
                         update.mutate({ id: it.product.id, qty: nextQty })
                       }}
                     />
-                    <button
-                      type="button"
-                      disabled={remove.isPending}
-                      className="text-sm text-red-600 hover:underline disabled:opacity-50"
-                      onClick={() => remove.mutate(it.product.id)}
-                    >
-                      {t('actions.delete')}
-                    </button>
+                    <div className="flex flex-col gap-1 text-xs sm:flex-row sm:items-center sm:gap-3">
+                      <button
+                        type="button"
+                        disabled={saveMutation.isPending}
+                        className="text-sm text-neutral-500 hover:underline disabled:opacity-50"
+                        onClick={() => saveMutation.mutate(it.product.id)}
+                      >
+                        {t('actions.saveForLater', { defaultValue: 'Save for later' })}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={remove.isPending}
+                        className="text-sm text-red-600 hover:underline disabled:opacity-50"
+                        onClick={() => remove.mutate(it.product.id)}
+                      >
+                        {t('actions.delete')}
+                      </button>
+                    </div>
                   </div>
                 </li>
               ))}
             </ul>
           </div>
+
+          {saved.data && saved.data.length > 0 && (
+            <div className="rounded-xl border bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
+              <h2 className="text-base font-semibold">{t('cart.savedForLater', { defaultValue: 'Saved for later' })}</h2>
+              <ul className="mt-3 space-y-3 text-sm">
+                {saved.data.map(item => (
+                  <li key={item.product.id} className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="font-medium text-neutral-800 dark:text-neutral-100">{item.product.title}</div>
+                      <div className="text-xs text-neutral-500">{formatPrice(item.product.base_price)} · {t('product.sku')}: {item.product.sku}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => moveSavedToCart.mutate({ id: item.product.id, qty: item.quantity ?? 1 })}
+                        disabled={moveSavedToCart.isPending}
+                      >
+                        {t('actions.addToCart')}
+                      </Button>
+                      <button
+                        type="button"
+                        className="text-xs text-neutral-500 hover:underline disabled:opacity-50"
+                        disabled={removeSavedMutation.isPending}
+                        onClick={() => removeSavedMutation.mutate(item.product.id)}
+                      >
+                        {t('actions.remove', { defaultValue: 'Remove' })}
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <aside>
             <div className="sticky top-24 space-y-4">

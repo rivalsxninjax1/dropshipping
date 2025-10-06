@@ -1,13 +1,19 @@
-import { ButtonHTMLAttributes } from 'react'
+import { type AnchorHTMLAttributes, type ButtonHTMLAttributes } from 'react'
 import clsx from 'clsx'
 
 type Variant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'accent' | 'destructive'
 type Size = 'sm' | 'md' | 'lg'
 
-type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
+type BaseProps = {
   variant?: Variant
   size?: Size
+  as?: 'button' | 'a'
 }
+
+type ButtonProps = BaseProps & ButtonHTMLAttributes<HTMLButtonElement>
+type AnchorProps = BaseProps & AnchorHTMLAttributes<HTMLAnchorElement>
+
+type Props = ButtonProps | AnchorProps
 
 const base = 'inline-flex items-center justify-center rounded-full font-semibold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60'
 
@@ -31,11 +37,12 @@ const sizeStyles: Record<Size, string> = {
   lg: 'h-12 px-8 text-base',
 }
 
-export default function Button({ className, variant = 'primary', size = 'md', ...props }: Props) {
+export default function Button({ className, variant = 'primary', size = 'md', as = 'button', ...props }: Props) {
+  const Component = (as === 'a' ? 'a' : 'button') as 'a' | 'button'
   return (
-    <button
+    <Component
       className={clsx(base, variantStyles[variant], sizeStyles[size], className)}
-      {...props}
+      {...(props as any)}
     />
   )
 }

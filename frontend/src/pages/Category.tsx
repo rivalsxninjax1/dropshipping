@@ -25,6 +25,8 @@ export default function Category() {
     rating: searchParams.get('rating_min') || '',
     shipping: searchParams.get('shipping_max') || '',
     inStock: searchParams.get('stock') === 'true',
+    size: searchParams.get('size') || '',
+    color: searchParams.get('color') || '',
   })
 
   const [filters, setFilters] = useState(deriveFilters)
@@ -44,6 +46,8 @@ export default function Category() {
     if (filters.rating) params.rating_min = filters.rating
     if (filters.shipping) params.shipping_max = filters.shipping
     if (filters.inStock) params.stock = 'true'
+    if (filters.size) params.size = filters.size
+    if (filters.color) params.color = filters.color
     return params
   }, [slug, currentPage, ordering, filters])
 
@@ -68,8 +72,8 @@ export default function Category() {
   const heading = slug ? slug.replace(/-/g, ' ') : t('nav.products', { defaultValue: 'Products' })
 
   const clearFilters = () => {
-    setFilters({ priceMin: '', priceMax: '', brand: '', supplier: '', rating: '', shipping: '', inStock: false })
-    syncSearch({ price_min: undefined, price_max: undefined, brand: undefined, supplier: undefined, rating_min: undefined, shipping_max: undefined, stock: undefined })
+    setFilters({ priceMin: '', priceMax: '', brand: '', supplier: '', rating: '', shipping: '', inStock: false, size: '', color: '' })
+    syncSearch({ price_min: undefined, price_max: undefined, brand: undefined, supplier: undefined, rating_min: undefined, shipping_max: undefined, stock: undefined, size: undefined, color: undefined })
   }
 
   const applyFilters = () => {
@@ -81,6 +85,8 @@ export default function Category() {
       rating_min: filters.rating || undefined,
       shipping_max: filters.shipping || undefined,
       stock: filters.inStock ? 'true' : undefined,
+      size: filters.size || undefined,
+      color: filters.color || undefined,
     })
   }
 
@@ -104,7 +110,9 @@ export default function Category() {
     filters.supplier ||
     filters.rating ||
     filters.shipping ||
-    filters.inStock
+    filters.inStock ||
+    filters.size ||
+    filters.color
   )
 
   return (
@@ -214,6 +222,26 @@ export default function Category() {
                 />
               </fieldset>
 
+              <fieldset>
+                <legend className="mb-2 text-xs uppercase tracking-[0.3em] text-neutral-400">{t('filters.size')}</legend>
+                <input
+                  value={filters.size}
+                  onChange={event => setFilters(prev => ({ ...prev, size: event.target.value }))}
+                  placeholder="S, M, L, XL..."
+                  className="h-11 w-full rounded-2xl border border-neutral-200 bg-white px-3 text-sm focus:border-primary-200 focus:outline-none"
+                />
+              </fieldset>
+
+              <fieldset>
+                <legend className="mb-2 text-xs uppercase tracking-[0.3em] text-neutral-400">{t('filters.color')}</legend>
+                <input
+                  value={filters.color}
+                  onChange={event => setFilters(prev => ({ ...prev, color: event.target.value }))}
+                  placeholder="Red, Blue, Black..."
+                  className="h-11 w-full rounded-2xl border border-neutral-200 bg-white px-3 text-sm focus:border-primary-200 focus:outline-none"
+                />
+              </fieldset>
+
               <label className="inline-flex items-center gap-2 text-xs font-semibold text-neutral-500">
                 <input
                   type="checkbox"
@@ -248,6 +276,8 @@ export default function Category() {
                 {filters.brand && <Badge variant="outline">Brand: {filters.brand}</Badge>}
                 {filters.rating && <Badge variant="outline">{filters.rating}★+</Badge>}
                 {filters.inStock && <Badge variant="outline">{t('filters.inStock')}</Badge>}
+                {filters.size && <Badge variant="outline">Size: {filters.size}</Badge>}
+                {filters.color && <Badge variant="outline">Color: {filters.color}</Badge>}
               </div>
             )}
           </div>

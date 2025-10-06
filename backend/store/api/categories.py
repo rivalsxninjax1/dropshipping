@@ -9,7 +9,13 @@ from ..models import Category
 class CategoryViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     """Public categories list."""
 
-    queryset = Category.objects.all().order_by("name")
     serializer_class = CategorySerializer
     permission_classes = [AllowAny]
 
+    def get_queryset(self):
+        qs = Category.objects.all()
+        if self.request.query_params.get("trending") in ("1", "true", "True"):
+            qs = qs.filter(is_trending=True).order_by("display_order", "name")
+        else:
+            qs = qs.order_by("display_order", "name")
+        return qs

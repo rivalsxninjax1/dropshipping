@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.core.management.base import BaseCommand
 from django.utils.text import slugify
 
-from store.models import Category, Inventory, Product
+from store.models import Category, Inventory, Product, ProductVariant
 
 
 CATEGORY_SAMPLES = [
@@ -212,6 +212,102 @@ CATEGORY_SAMPLES = [
         ],
     },
     {
+        "name": "Streetwear",
+        "slug": "streetwear",
+        "products": [
+            {
+                "sku": "AP-001",
+                "title": "Oversized Nepali Hoodie",
+                "description": "Fleece-lined hoodie with Nepali type treatment and drop shoulders.",
+                "price": Decimal("89.00"),
+                "quantity": 24,
+                "brand": "Kathmandu Collective",
+                "weight": Decimal("0.750"),
+                "dimensions": "Unisex",
+                "attributes": {
+                    "material": "cotton fleece",
+                    "colorways": ["Black", "Sage"],
+                    "care": "Machine wash cold",
+                },
+                "size_fit_notes": "Relaxed, boxy fit. Size down for a traditional silhouette.",
+                "variants": [
+                    {"size": "S", "color": "Black", "stock": 6},
+                    {"size": "M", "color": "Black", "stock": 8, "is_default": True},
+                    {"size": "L", "color": "Sage", "stock": 6},
+                ],
+            },
+            {
+                "sku": "AP-002",
+                "title": "Utility Crop Jacket",
+                "description": "Boxy cropped jacket with cargo pockets and reflective taping.",
+                "price": Decimal("119.00"),
+                "quantity": 18,
+                "brand": "Altitude 8848",
+                "weight": Decimal("0.640"),
+                "dimensions": "Unisex",
+                "attributes": {
+                    "material": "ripstop nylon",
+                    "lining": "mesh",
+                    "colorways": ["Olive", "Ivory"],
+                },
+                "size_fit_notes": "Cropped at waist with adjustable hem toggles.",
+                "variants": [
+                    {"size": "S", "color": "Olive", "stock": 4},
+                    {"size": "M", "color": "Olive", "stock": 6},
+                    {"size": "L", "color": "Ivory", "stock": 4},
+                ],
+            },
+        ],
+    },
+    {
+        "name": "Footwear",
+        "slug": "footwear",
+        "products": [
+            {
+                "sku": "FT-001",
+                "title": "High-Top Canvas Sneakers",
+                "description": "Platform high-tops with memory foam insoles and reflective piping.",
+                "price": Decimal("99.00"),
+                "quantity": 20,
+                "brand": "Rooftop",
+                "weight": Decimal("0.980"),
+                "dimensions": "Unisex",
+                "attributes": {
+                    "upper": "canvas",
+                    "sole": "rubber",
+                    "colorways": ["White", "Midnight"],
+                },
+                "size_fit_notes": "True to size. Half sizes size up for a relaxed fit.",
+                "variants": [
+                    {"size": "38", "color": "White", "stock": 5},
+                    {"size": "39", "color": "White", "stock": 5},
+                    {"size": "41", "color": "Midnight", "stock": 5},
+                ],
+            },
+            {
+                "sku": "FT-002",
+                "title": "Chunky Trail Sneakers",
+                "description": "Lightweight trail sneaker with Vibram-inspired outsole and reflective laces.",
+                "price": Decimal("129.00"),
+                "quantity": 16,
+                "brand": "Summit Labs",
+                "weight": Decimal("0.860"),
+                "dimensions": "Unisex",
+                "attributes": {
+                    "upper": "mesh + suede",
+                    "sole": "lugged rubber",
+                    "colorways": ["Sand", "Charcoal"],
+                },
+                "size_fit_notes": "Snug performance fit. Size up for everyday wear.",
+                "variants": [
+                    {"size": "40", "color": "Sand", "stock": 4},
+                    {"size": "41", "color": "Sand", "stock": 4},
+                    {"size": "42", "color": "Charcoal", "stock": 4},
+                ],
+            },
+        ],
+    },
+    {
         "name": "Books & Media",
         "slug": "books-and-media",
         "products": [
@@ -300,6 +396,9 @@ class Command(BaseCommand):
                 if product.get("video_url"):
                     product_defaults["video_url"] = product["video_url"]
 
+                if product.get("size_fit_notes"):
+                    product_defaults["size_fit_notes"] = product["size_fit_notes"]
+
                 obj, prod_created = Product.objects.update_or_create(
                     sku=product["sku"],
                     defaults=product_defaults,
@@ -310,6 +409,21 @@ class Command(BaseCommand):
                     product=obj,
                     defaults={"quantity": product.get("quantity", 20)},
                 )
+
+                variants = product.get("variants") or []
+                if variants:
+                    ProductVariant.objects.filter(product=obj).delete()
+                    for position, variant in enumerate(variants, start=1):
+                        ProductVariant.objects.create(
+                            product=obj,
+                            size=variant.get("size", ""),
+                            color=variant.get("color", ""),
+                            stock=variant.get("stock", 0),
+                            price_modifier=Decimal(str(variant.get("price_modifier", "0"))),
+                            position=variant.get("position", position),
+                            is_default=variant.get("is_default", position == 1),
+                            sku=variant.get("sku", ""),
+                        )
 
         self.stdout.write(
             self.style.SUCCESS(

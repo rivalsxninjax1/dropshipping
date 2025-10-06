@@ -20,6 +20,9 @@ from store.models import (
     Notification,
     Coupon,
     OrderStatusEvent,
+    Category,
+    Bundle,
+    ContentPage,
 )
 from store.permissions import IsStaffUser
 from store.serializers import (
@@ -27,6 +30,10 @@ from store.serializers import (
     AdminOrderSerializer,
     CouponSerializer,
     LowStockProductSerializer,
+    CategorySerializer,
+    BundleSerializer,
+    BundleWriteSerializer,
+    ContentPageSerializer,
 )
 from store.tasks import sync_supplier_products
 from store.payments.base import get_gateway
@@ -165,4 +172,26 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
 class AdminCouponViewSet(viewsets.ModelViewSet):
     queryset = Coupon.objects.all().order_by('-expires_at')
     serializer_class = CouponSerializer
+    permission_classes = [IsAuthenticated, IsStaffUser]
+
+
+class AdminCategoryViewSet(viewsets.ModelViewSet):
+    queryset = Category.objects.all().order_by('display_order', 'name')
+    serializer_class = CategorySerializer
+    permission_classes = [IsAuthenticated, IsStaffUser]
+
+
+class AdminBundleViewSet(viewsets.ModelViewSet):
+    queryset = Bundle.objects.all().prefetch_related('items__product')
+    permission_classes = [IsAuthenticated, IsStaffUser]
+
+    def get_serializer_class(self):
+        if self.action in ('create', 'update', 'partial_update'):
+            return BundleWriteSerializer
+        return BundleSerializer
+
+
+class AdminContentPageViewSet(viewsets.ModelViewSet):
+    queryset = ContentPage.objects.all().order_by('slug')
+    serializer_class = ContentPageSerializer
     permission_classes = [IsAuthenticated, IsStaffUser]

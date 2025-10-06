@@ -144,14 +144,69 @@ class ESewaGateway(PaymentGateway):
     def verify_webhook(self, payload: Dict[str, Any], headers: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
         status = (payload.get("status") or payload.get("state") or "").lower()
         provider_payment_id = payload.get("provider_payment_id") or payload.get("refId") or payload.get("oid")
+        transaction_id = payload.get("transaction_id") or payload.get("txn_id") or provider_payment_id
+        amount = payload.get("amount") or payload.get("amt") or payload.get("total_amount")
+        
+        signature_valid = False
         if self.SECRET:
+            # Verify signature from headers
             raw = (headers.get("X-Raw-Body") or "").encode() or (str(payload).encode())
             sig = headers.get("X-Signature", "")
             expected = hmac.new(self.SECRET.encode(), raw, hashlib.sha256).hexdigest()
-            if not hmac.compare_digest(sig, expected):
-                return False, {"status": status, "provider_payment_id": provider_payment_id}
-        ok = status in ("success", "succeeded", "paid") and bool(provider_payment_id)
-        return ok, {"status": "succeeded" if ok else status, "provider_payment_id": provider_payment_id}
+            signature_valid = hmac.compare_digest(sig, expected)
+            
+            # If signature is present but invalid, reject the webhook
+            if sig and not signature_valid:
+                return False, {
+                    "status": "invalid_signature", 
+                    "provider_payment_id": provider_payment_id,
+                    "signature_verified": False
+                }
+        
+        # Verify with eSewa API if possible
+        api_verified = False
+        response_data = {}
+        if self.SECRET and transaction_id and amount:
+            try:
+                status_url = self.STATUS_URL or self.DEFAULT_STATUS_URL
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Key {self.SECRET}"
+                }
+                params = {
+                    "transaction_id": transaction_id,
+                    "amount": amount,
+                    "merchant_id": self.MERCHANT_ID
+                }
+                
+                resp = requests.get(status_url, params=params, headers=headers, timeout=15)
+                if resp.status_code in (200, 201):
+                    try:
+                        response_data = resp.json()
+                        api_status = (response_data.get("status") or "").lower()
+                        api_verified = api_status in ("success", "succeeded", "paid", "complete", "completed")
+                    except Exception:
+                        pass
+            except Exception:
+                # If API verification fails, continue with basic validation
+                pass
+                
+        # Determine if payment is valid based on signature or API verification
+        ok = (api_verified or signature_valid or (not sig and not api_verified)) and \
+             status in ("success", "succeeded", "paid") and bool(provider_payment_id)
+             
+        result = {
+            "status": "succeeded" if ok else status,
+            "provider_payment_id": provider_payment_id,
+            "signature_verified": signature_valid,
+            "api_verified": api_verified
+        }
+        
+        # Include additional data from API response if available
+        if response_data:
+            result["transaction_details"] = response_data
+            
+        return ok, result
 
     def handle_refund(self, order, amount):
         return {"status": "refunded", "reference": f"esewa_ref_{order.id}"}

@@ -57,11 +57,16 @@ class Category(models.Model):
     name = models.CharField(max_length=200)
     slug = models.SlugField(max_length=200, unique=True)
     parent = models.ForeignKey("self", null=True, blank=True, related_name="children", on_delete=models.CASCADE)
+    hero_image = models.URLField(blank=True)
+    tagline = models.CharField(max_length=160, blank=True)
+    is_trending = models.BooleanField(default=False)
+    display_order = models.PositiveIntegerField(default=0)
 
     class Meta:
         indexes = [
             models.Index(fields=["slug"]),
             models.Index(fields=["name"]),
+            models.Index(fields=["is_trending", "display_order"]),
         ]
         verbose_name_plural = "categories"
 
@@ -105,6 +110,7 @@ class Product(models.Model):
     shipping_time_min_days = models.PositiveIntegerField(default=5)
     shipping_time_max_days = models.PositiveIntegerField(default=12)
     attributes = models.JSONField(default=dict, blank=True)
+    size_fit_notes = models.TextField(blank=True)
     active = models.BooleanField(default=True)
     is_deleted = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -144,6 +150,31 @@ class SupplierProduct(models.Model):
         return f"{self.supplier.name}:{self.supplier_sku} -> {self.product.sku}"
 
 
+class ProductVariant(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="variants")
+    size = models.CharField(max_length=32, blank=True)
+    color = models.CharField(max_length=64, blank=True)
+    sku = models.CharField(max_length=80, blank=True)
+    price_modifier = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
+    stock = models.PositiveIntegerField(default=0)
+    position = models.PositiveIntegerField(default=0)
+    is_default = models.BooleanField(default=False)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["product", "size", "color", "sku"], name="uniq_product_variant_option"),
+        ]
+        ordering = ["position", "id"]
+
+    def __str__(self):
+        parts = [self.product.sku]
+        if self.size:
+            parts.append(self.size)
+        if self.color:
+            parts.append(self.color)
+        return " | ".join(parts)
+
+
 class Inventory(models.Model):
     product = models.OneToOneField(Product, on_delete=models.CASCADE, related_name="inventory")
     quantity = models.IntegerField(validators=[MinValueValidator(0)], default=0)
@@ -160,6 +191,93 @@ class Inventory(models.Model):
 
     def __str__(self):
         return f"{self.product.sku}: {self.quantity}"
+
+
+class Bundle(models.Model):
+    class BundleType(models.TextChoices):
+        CURATED = "curated", "Curated"
+        LIMITED_DROP = "limited_drop", "Limited Drop"
+        TOP_PICKS = "top_picks", "Top Picks"
+
+    title = models.CharField(max_length=160)
+    slug = models.SlugField(max_length=160, unique=True)
+    description = models.TextField(blank=True)
+    tagline = models.CharField(max_length=160, blank=True)
+    hero_image = models.ImageField(upload_to="bundles/", blank=True, null=True)
+    bundle_type = models.CharField(max_length=32, choices=BundleType.choices, default=BundleType.CURATED)
+    discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0.00"))
+    discount_amount = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0.00"))
+    starts_at = models.DateTimeField(null=True, blank=True)
+    ends_at = models.DateTimeField(null=True, blank=True)
+    countdown_ends_at = models.DateTimeField(null=True, blank=True)
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.title
+
+    def is_live(self) -> bool:
+        now = timezone.now()
+        if not self.active:
+            return False
+        if self.starts_at and now < self.starts_at:
+            return False
+        if self.ends_at and now > self.ends_at:
+            return False
+        return True
+
+    def base_price(self) -> Decimal:
+        total = Decimal("0.00")
+        for item in self.items.select_related("product"):
+            total += item.extended_price
+        return total.quantize(Decimal("0.01"))
+
+    def final_price(self) -> Decimal:
+        price = self.base_price()
+        if self.discount_percent:
+            price = price * (Decimal("1.00") - self.discount_percent / Decimal("100.00"))
+        if self.discount_amount:
+            price = price - self.discount_amount
+        if price < Decimal("0.00"):
+            price = Decimal("0.00")
+        return price.quantize(Decimal("0.01"))
+
+
+class BundleItem(models.Model):
+    bundle = models.ForeignKey(Bundle, on_delete=models.CASCADE, related_name="items")
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="bundle_items")
+    quantity = models.PositiveIntegerField(default=1)
+    position = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["bundle", "product"], name="uniq_product_bundle"),
+        ]
+        ordering = ["position", "id"]
+
+    @property
+    def extended_price(self) -> Decimal:
+        base = self.product.base_price
+        return (base * self.quantity).quantize(Decimal("0.01"))
+
+    def __str__(self):
+        return f"{self.bundle.title} -> {self.product.title}"
+
+
+class SizeGuide(models.Model):
+    category = models.OneToOneField(Category, on_delete=models.CASCADE, related_name="size_guide")
+    headline = models.CharField(max_length=160)
+    content = models.TextField()
+    measurement_image = models.ImageField(upload_to="size-guides/", blank=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Size guide for {self.category.name}"
 
 
 class Address(models.Model):
@@ -201,6 +319,13 @@ class Order(models.Model):
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal("0.00"))])
     discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
     coupon = models.ForeignKey("Coupon", null=True, blank=True, on_delete=models.SET_NULL, related_name="orders")
+    referral_coupon = models.ForeignKey(
+        "Coupon",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="referral_orders",
+    )
     shipping_address = models.ForeignKey(Address, on_delete=models.PROTECT, related_name="shipping_orders")
     billing_address = models.ForeignKey(Address, on_delete=models.PROTECT, related_name="billing_orders")
     shipping_method = models.CharField(max_length=120, blank=True)
@@ -229,7 +354,7 @@ class Order(models.Model):
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="items")
-    product = models.ForeignKey(Product, on_delete=models.PROTECT)
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name="order_items")
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
     quantity = models.PositiveIntegerField(validators=[MinValueValidator(1)])
     variant_info = models.JSONField(default=dict, blank=True)
@@ -247,6 +372,7 @@ class Payment(models.Model):
         PAYPAL = "paypal", "PayPal"
         ESEWA = "esewa", "eSewa"
         KHALTI = "khalti", "Khalti"
+        COD = "cod", "Cash on Delivery"
         OTHER = "other", "Other"
 
     class Status(models.TextChoices):
@@ -282,6 +408,10 @@ class Coupon(models.Model):
     min_order_total = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
     is_active = models.BooleanField(default=True)
     expires_at = models.DateTimeField(null=True, blank=True)
+    is_referral = models.BooleanField(default=False)
+    influencer_name = models.CharField(max_length=120, blank=True)
+    influencer_handle = models.CharField(max_length=120, blank=True)
+    referral_url = models.URLField(blank=True)
 
     def is_valid(self) -> bool:
         if not self.is_active:
@@ -297,6 +427,7 @@ class Review(models.Model):
     rating = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
     comment = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    verified_purchase = models.BooleanField(default=False)
 
     class Meta:
         indexes = [
@@ -305,6 +436,16 @@ class Review(models.Model):
 
     def __str__(self):
         return f"{self.product.sku} review by {self.user.email}: {self.rating}"
+
+
+class ReviewMedia(models.Model):
+    review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="media")
+    image = models.ImageField(upload_to="reviews/")
+    alt_text = models.CharField(max_length=140, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"ReviewMedia(review={self.review_id})"
 
 
 class Wishlist(models.Model):
@@ -373,6 +514,22 @@ class ReturnRequest(models.Model):
 
     def __str__(self):
         return f"ReturnRequest(order={self.order_id}, status={self.status})"
+
+
+class ContentPage(models.Model):
+    slug = models.SlugField(max_length=64, unique=True)
+    title = models.CharField(max_length=160)
+    body = models.TextField()
+    hero_image = models.URLField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["slug"]
+
+    def __str__(self):
+        return self.title
 
 
 class Notification(models.Model):

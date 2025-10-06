@@ -13,12 +13,13 @@ const shimmer = 'data:image/svg+xml;base64,' +
   )
 
 export default function ProductCard({ product }: { product: Product }) {
-  const { i18n } = useTranslation()
+  const { i18n, t } = useTranslation()
   const openQuickView = useUIStore(s => s.openQuickView)
   const displayPrice = formatUsdAsNpr(product.base_price, i18n.language)
   const image = product.images || product.gallery?.[0] || shimmer
   const rating = product.avg_rating ?? 4.8
-  const limited = Number((product.attributes as any)?.stock ?? 12) <= 12
+  const stockGuess = Number((product.attributes as any)?.stock ?? 0)
+  const limited = Boolean(product.urgency_copy) || (product.stock_qty ?? stockGuess) <= 5
 
   return (
     <motion.article
@@ -77,7 +78,9 @@ export default function ProductCard({ product }: { product: Product }) {
         </h3>
         <div className="flex items-end justify-between">
           <p className="text-lg font-bold text-neutral-900">{displayPrice}</p>
-          <p className="text-xs text-neutral-400">Ships in 3-5 days</p>
+          <p className="text-xs text-neutral-400">
+            {product.urgency_copy ? product.urgency_copy : t('product.cardShipping', { defaultValue: 'Ships in 3-5 days' })}
+          </p>
         </div>
       </div>
     </motion.article>

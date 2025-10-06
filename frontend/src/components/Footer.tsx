@@ -19,6 +19,7 @@ const footerLinks = [
       { label: 'nav.about', fallback: 'About', href: '/about' },
       { label: 'nav.contact', fallback: 'Contact', href: '/contact' },
       { label: 'nav.orders', fallback: 'Orders', href: '/account/orders' },
+      { label: 'footer.returns', fallback: 'Returns & Refunds', href: '/policies/returns' },
     ],
   },
 ]

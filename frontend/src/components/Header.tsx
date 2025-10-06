@@ -46,6 +46,7 @@ const navItems = [
   { label: 'nav.products', fallback: 'Shop', href: '/products' },
   { label: 'nav.about', fallback: 'About', href: '/about' },
   { label: 'nav.contact', fallback: 'Contact', href: '/contact' },
+  { label: 'nav.trackOrder', fallback: 'Track order', href: '/track-order' },
 ]
 
 export default function Header() {

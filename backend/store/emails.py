@@ -53,12 +53,26 @@ def send_order_notification(order: Order) -> None:
     message = "\n".join(list(_format_order_lines(order)))
 
     try:
-        send_mail(
+        # Import the Gmail API utility
+        from .gmail_api import send_email_via_gmail
+        
+        # Try sending via Gmail API first
+        success = send_email_via_gmail(
+            to=recipient,
             subject=subject,
-            message=message,
-            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
-            recipient_list=[recipient],
-            fail_silently=False,
+            body=message
         )
+        
+        # Fall back to Django's send_mail if Gmail API fails
+        if not success:
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+                recipient_list=[recipient],
+                fail_silently=False,
+            )
+            
+        logger.info(f"Order notification sent for order {order.id} to {recipient}")
     except Exception:
         logger.exception("Failed to send order notification for order %s", order.id)

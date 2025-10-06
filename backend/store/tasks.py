@@ -178,6 +178,8 @@ def reconcile_payments():
                     p.order.save(update_fields=["status", "payment_status"])
                 if p.order.coupon:
                     CouponRedemption.objects.get_or_create(order=p.order, coupon=p.order.coupon, user=p.order.user)
+                if p.order.referral_coupon:
+                    CouponRedemption.objects.get_or_create(order=p.order, coupon=p.order.referral_coupon, user=p.order.user)
                 mismatches.append(p.id)
         except NotImplementedError:
             continue

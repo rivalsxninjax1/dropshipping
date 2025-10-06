@@ -13,7 +13,8 @@ class UserAdmin(admin.ModelAdmin):
 
 @admin.register(models.Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "slug", "parent")
+    list_display = ("id", "name", "slug", "parent", "is_trending", "display_order")
+    list_filter = ("is_trending", "parent")
     search_fields = ("name", "slug")
     prepopulated_fields = {"slug": ("name",)}
 
@@ -76,6 +77,13 @@ class ProductAdmin(admin.ModelAdmin):
     prepopulated_fields = {"slug": ("title",)}
 
 
+@admin.register(models.ProductVariant)
+class ProductVariantAdmin(admin.ModelAdmin):
+    list_display = ("id", "product", "size", "color", "stock", "is_default")
+    list_filter = ("size", "color", "is_default")
+    search_fields = ("product__sku", "product__title", "sku")
+
+
 @admin.register(models.SupplierProduct)
 class SupplierProductAdmin(admin.ModelAdmin):
     list_display = ("id", "supplier", "product", "supplier_sku", "supplier_product_id")
@@ -87,6 +95,20 @@ class SupplierProductAdmin(admin.ModelAdmin):
 class InventoryAdmin(admin.ModelAdmin):
     list_display = ("product", "quantity", "stocked_at")
     search_fields = ("product__sku", "product__title")
+
+
+class BundleItemInline(admin.TabularInline):
+    model = models.BundleItem
+    extra = 1
+
+
+@admin.register(models.Bundle)
+class BundleAdmin(admin.ModelAdmin):
+    list_display = ("id", "title", "bundle_type", "active", "starts_at", "ends_at")
+    list_filter = ("bundle_type", "active")
+    search_fields = ("title", "slug")
+    prepopulated_fields = {"slug": ("title",)}
+    inlines = [BundleItemInline]
 
 
 @admin.register(models.Order)
@@ -111,9 +133,20 @@ class PaymentAdmin(admin.ModelAdmin):
 
 @admin.register(models.Coupon)
 class CouponAdmin(admin.ModelAdmin):
-    list_display = ("id", "code", "discount_type", "value", "usage_limit", "per_user_limit", "is_active", "expires_at")
-    list_filter = ("discount_type", "is_active")
-    search_fields = ("code",)
+    list_display = (
+        "id",
+        "code",
+        "discount_type",
+        "value",
+        "usage_limit",
+        "per_user_limit",
+        "is_active",
+        "expires_at",
+        "is_referral",
+        "influencer_name",
+    )
+    list_filter = ("discount_type", "is_active", "is_referral")
+    search_fields = ("code", "influencer_name", "influencer_handle")
 
 
 @admin.register(models.CouponRedemption)
@@ -158,9 +191,15 @@ class NotificationAdmin(admin.ModelAdmin):
 
 @admin.register(models.Review)
 class ReviewAdmin(admin.ModelAdmin):
-    list_display = ("id", "product", "user", "rating", "created_at")
-    list_filter = ("rating", "created_at")
+    list_display = ("id", "product", "user", "rating", "verified_purchase", "created_at")
+    list_filter = ("rating", "verified_purchase", "created_at")
     search_fields = ("product__sku", "user__email")
+
+
+@admin.register(models.ReviewMedia)
+class ReviewMediaAdmin(admin.ModelAdmin):
+    list_display = ("id", "review", "created_at")
+    search_fields = ("review__product__sku", "review__user__email")
 
 
 @admin.register(models.Address)
@@ -168,3 +207,17 @@ class AddressAdmin(admin.ModelAdmin):
     list_display = ("id", "user", "label", "city", "country", "is_default_shipping", "is_default_billing")
     list_filter = ("country", "is_default_shipping", "is_default_billing")
     search_fields = ("user__email", "city", "state", "postal_code")
+
+
+@admin.register(models.SizeGuide)
+class SizeGuideAdmin(admin.ModelAdmin):
+    list_display = ("id", "category", "headline", "updated_at")
+    search_fields = ("category__name", "headline")
+
+
+@admin.register(models.ContentPage)
+class ContentPageAdmin(admin.ModelAdmin):
+    list_display = ("id", "title", "slug", "is_active", "updated_at")
+    list_filter = ("is_active",)
+    search_fields = ("title", "slug")
+    prepopulated_fields = {"slug": ("title",)}

@@ -6,7 +6,8 @@
     "wishlist": "Wishlist",
     "profile": "Profile",
     "addresses": "Addresses",
-    "products": "Products"
+    "products": "Products",
+    "trackOrder": "Track order"
   },
   "search": {
     "placeholder": "Search products...",
@@ -29,7 +30,14 @@
     "continue": "Continue",
     "back": "Back",
     "loadMore": "Load more",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "submit": "Submit",
+    "saveChanges": "Save changes",
+    "saving": "Saving…",
+    "view": "View",
+    "hide": "Hide",
+    "saveForLater": "Save for later",
+    "backHome": "Back to home"
   },
   "theme": {
     "light": "Light mode",
