@@ -25,7 +25,7 @@ const footerLinks = [
 ]
 
 const socials = [
-  { label: 'Instagram', href: 'https://instagram.com', icon: '📸' },
+  { label: 'Instagram', href: 'https://www.instagram.com/rivalsxninjax/', icon: '📸' },
   { label: 'TikTok', href: 'https://tiktok.com', icon: '🎵' },
   { label: 'YouTube', href: 'https://youtube.com', icon: '▶️' },
 ]
@@ -46,7 +46,7 @@ export default function Footer() {
             <div className="flex items-center gap-3">
               <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-xl font-bold text-white shadow-glow">ds</span>
               <div>
-                <h3 className="font-heading text-2xl font-semibold">Dropshipper</h3>
+                <h3 className="font-heading text-2xl font-semibold">VastraStore</h3>
                 <p className="text-sm text-neutral-300">{t('footer.tagline', 'Trendy essentials curated for your daily glow up.')}</p>
               </div>
             </div>
@@ -88,20 +88,20 @@ export default function Footer() {
         <div className="grid grid-cols-1 gap-6 rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur md:grid-cols-3">
           <div className="flex items-center gap-3 text-sm text-neutral-200">
             <EnvelopeIcon className="h-5 w-5" />
-            <span>hello@dropshipper.design</span>
+            <span>sabinynwa@gmail.com</span>
           </div>
           <div className="flex items-center gap-3 text-sm text-neutral-200">
             <PhoneIcon className="h-5 w-5" />
-            <span>+977 980-123-4567</span>
+            <span>+977 9742270999</span>
           </div>
           <div className="flex items-center gap-3 text-sm text-neutral-200">
             <MapPinIcon className="h-5 w-5" />
-            <span>{t('footer.location', 'Kathmandu • Remote Worldwide')}</span>
+            <span>{t('footer.location', 'Kathmandu • Delivered all over Nepal')}</span>
           </div>
         </div>
 
         <div className="flex flex-col items-center justify-between gap-4 border-t border-white/10 pt-6 text-xs text-neutral-500 sm:flex-row">
-          <p>© {currentYear} Dropshipper. {t('footer.rights', 'All rights reserved.')}</p>
+          <p>© {currentYear} VastraStore. {t('footer.rights', 'All rights reserved.')}</p>
           <div className="flex items-center gap-4">
             <Link to="/terms" className="hover:text-white">{t('footer.terms', 'Terms')}</Link>
             <Link to="/privacy" className="hover:text-white">{t('footer.privacy', 'Privacy')}</Link>

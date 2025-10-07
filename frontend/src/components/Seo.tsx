@@ -13,7 +13,7 @@ type SeoProps = {
 }
 
 export default function Seo({ title, description, image, url }: SeoProps) {
-  const fullTitle = title ? `${title} • Dropshipper` : DEFAULT_TITLE
+  const fullTitle = title ? `${title} • VastraStore` : DEFAULT_TITLE
   const metaDescription = description || DEFAULT_DESCRIPTION
   const metaImage = image || DEFAULT_IMAGE || '/og-image.png'
   const canonical = url || BASE_URL

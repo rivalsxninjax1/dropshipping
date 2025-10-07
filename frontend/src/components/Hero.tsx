@@ -4,9 +4,9 @@ import Button from './Button'
 import { Badge } from './ui/Badge'
 
 const photos = [
-  'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=600&q=80',
-  'https://images.unsplash.com/photo-1612423284934-2850ea7c46ba?auto=format&fit=crop&w=600&q=80',
-  'https://images.unsplash.com/photo-1585386959984-a4155220a1ad?auto=format&fit=crop&w=600&q=80',
+  'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=600&q=80',
+  'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?auto=format&fit=crop&w=600&q=80',
+  'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=600&q=80',
 ]
 
 export default function Hero() {
@@ -24,16 +24,15 @@ export default function Hero() {
           transition={{ duration: 0.6 }}
           className="max-w-2xl text-center lg:text-left"
         >
-          <Badge className="bg-white/20 text-white">New drop every Sunday</Badge>
+          <Badge className="bg-white/20 text-white">NEW COLLECTIONS WITH NEW ELEGENCE</Badge>
           <h1 className="mt-6 font-heading text-4xl font-semibold leading-tight sm:text-5xl">
-            Elevate your everyday with curated tools, tech, and aesthetics.
+            Step into elegance with designer-approved outfits crafted for Nepali lifestyles.
           </h1>
           <p className="mt-4 text-base text-white/80 sm:text-lg">
-            Discover design-forward essentials sourced from boutique makers. Built for the trendsetters who value function, craft, and calm minimalism.
-          </p>
+        From timeless traditional clothing to bold modern ethnic wear, every piece at VastraStore is handpicked by our fashion experts.</p>
           <div className="mt-8 flex flex-wrap justify-center gap-4 lg:justify-start">
             <Link to="/products" className="inline-flex">
-              <Button size="lg">Shop the latest drop</Button>
+              <Button size="lg">Shop Designer Picks</Button>
             </Link>
             <Link to="/about" className="inline-flex">
               <Button variant="outline" size="lg" className="border-white/50 bg-white/10 text-white hover:border-white hover:bg-white/20">
@@ -43,8 +42,8 @@ export default function Hero() {
           </div>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-6 text-sm text-white/70 lg:justify-start">
             <div>
-              <span className="text-2xl font-bold text-white">48k+</span>
-              <span className="ml-2 text-xs uppercase tracking-[0.3em]">Happy customers</span>
+              <span className="text-2xl font-bold text-white">🇳🇵</span>
+              <span className="ml-2 text-xs uppercase tracking-[0.3em]">Trustable Across Whole Nepal</span>
             </div>
             <div className="h-8 w-px bg-white/30" aria-hidden="true" />
             <div>
@@ -76,7 +75,7 @@ export default function Hero() {
           </div>
           <div className="absolute -bottom-10 right-6 hidden rounded-3xl bg-white/90 p-4 text-left text-neutral-900 shadow-glass backdrop-blur lg:block">
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-neutral-400">As seen in</p>
-            <p className="mt-2 text-sm font-semibold">Hypebeast · Dezeen · Highsnobiety</p>
+            <p className="mt-2 text-sm font-semibold">Kathmandu · Pokhara · Biratnagar</p>
           </div>
         </motion.div>
       </div>

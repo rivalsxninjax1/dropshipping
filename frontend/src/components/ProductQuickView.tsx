@@ -103,9 +103,9 @@ export default function ProductQuickView() {
 
                       <div className="rounded-3xl border border-neutral-200/70 bg-white/70 p-4 text-sm shadow-card dark:border-neutral-800/70 dark:bg-neutral-900/60">
                         <ul className="space-y-2">
-                          <li>• Free exchanges within 30 days (peace of mind for gifting)</li>
-                          <li>• Secure payment via eSewa, Khalti, and cards</li>
-                          <li>• Packaged with eco-friendly materials</li>
+                          <li>• Exchanges available according to supplier (peace of mind for gifting)</li>
+                          <li>• Secure payment via eSewa and Khalti</li>
+                          <li>• Packaged in a secured way </li>
                         </ul>
                       </div>
 

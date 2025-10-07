@@ -70,8 +70,8 @@ export default function Contact() {
             <a className="hover:text-primary-600" href="tel:+9779801234567">+977 980-123-4567</a>
           </div>
           <div className="rounded-2xl bg-neutral-100/80 p-4 text-sm text-neutral-500 shadow-inner">
-            <p className="font-semibold text-neutral-700">Studio pickup</p>
-            <p className="mt-1">Jhamsikhel, Lalitpur · Mon – Fri · 10:00 – 18:00 NST</p>
+            <p className="font-semibold text-neutral-700">Studio</p>
+            <p className="mt-1">Open : · Mon – Fri · 10:00 – 18:00 NST</p>
           </div>
         </div>
       </div>

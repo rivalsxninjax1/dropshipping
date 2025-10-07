@@ -15,18 +15,18 @@ import Seo from '../components/Seo'
 
 const benefits = [
   {
-    title: 'Free express shipping',
-    description: 'Complimentary same-day dispatch on orders above NPR 5,000.',
+    title: 'Fast and reliable shipping',
+    description: 'Reliable shipping with return or refund with compensation on damaged goods.',
     icon: '🚚',
   },
   {
-    title: 'Curated by stylists',
+    title: 'Selected by stylists',
     description: 'Each drop is reviewed by our trend scouts to stay ahead of the hype.',
     icon: '✨',
   },
   {
     title: 'Secure checkout',
-    description: 'Trusted partners: eSewa, Khalti, Stripe, and PayPal protected.',
+    description: 'Trusted partners: eSewa, and Khalti.',
     icon: '🔒',
   },
 ]
@@ -99,7 +99,7 @@ export default function Home() {
 
   return (
     <main className="flex flex-col gap-24 pb-24">
-      <Seo title={t('home.metaTitle', { defaultValue: 'Shop curated Nepali drops' })} description={t('home.metaDescription', { defaultValue: 'Discover TikTok outfits, Nepali streetwear, COD-friendly bundles, and limited drops updated weekly.' })} />
+      <Seo title={t('home.metaTitle', { defaultValue: 'Shop curated Nepali drops' })} description={t('home.metaDescription', { defaultValue: 'Discover TikTok outfits, Nepali streetwear, aesthetic bundles, and limited drops updated weekly.' })} />
       <Hero />
 
       {limitedBundle && (
@@ -147,7 +147,7 @@ export default function Home() {
         <SectionTitle
           eyebrow="Categories"
           title="Browse by mood and lifestyle"
-          description="Curated collections to match your vibe—study, gym, creator lab, or weekend adventures."
+          description="Designer selected collections to match your vibe—study, gym, creator lab, or weekend adventures."
         />
         <div className="mt-12 grid gap-6 md:grid-cols-3">
           {topCategories.map((category, index) => (
@@ -219,7 +219,7 @@ export default function Home() {
         <SectionTitle
           eyebrow="Proof"
           title="Loved by the community"
-          description="Social shoppers and creators share how Dropshipper fits into their daily ritual."
+          description="Social shoppers and creators share how VastraStore  fits into their daily ritual."
         />
         <div className="mt-10 grid gap-6 md:grid-cols-3">
           {testimonials.map(testimonial => (
@@ -239,7 +239,7 @@ export default function Home() {
           <div className="grid gap-6 md:grid-cols-[1.4fr_1fr] md:items-center">
             <div>
               <p className="section-heading">Stay in the Loop</p>
-              <h3 className="headline">Join the Sunday Drop newsletter</h3>
+              <h3 className="headline">Join the Weekly Drop newsletter</h3>
               <p className="mt-3 text-sm text-neutral-600">
                 Be the first to unlock early access, styling guides, and VIP pricing. We only send mindful, high-signal updates.
               </p>

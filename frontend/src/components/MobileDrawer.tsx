@@ -53,7 +53,7 @@ export default function MobileDrawer({ open, onClose }: MobileDrawerProps) {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-primary text-lg font-bold text-white">ds</span>
-                    <span className="font-heading text-lg font-semibold text-neutral-900 dark:text-white">Dropshipper</span>
+                    <span className="font-heading text-lg font-semibold text-neutral-900 dark:text-white">VastraStore</span>
                   </div>
                   <button onClick={onClose} className="text-sm text-neutral-500 hover:text-neutral-800" aria-label="Close menu">✕</button>
                 </div>

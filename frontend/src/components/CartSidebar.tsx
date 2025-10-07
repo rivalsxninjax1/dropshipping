@@ -201,7 +201,7 @@ export default function CartSidebar() {
                             <span className="text-base font-semibold text-neutral-900 dark:text-white">{formatPrice(subtotal)}</span>
                           </div>
                           <p className="rounded-2xl bg-white/60 p-3 text-xs text-neutral-500 shadow-inner dark:bg-neutral-900/60 dark:text-neutral-400">
-                            Taxes and shipping calculated at checkout. Free shipping on orders above NPR 5,000.
+                            Shipping and taxes calculated at checkout. No hidden fees, only designer-approved fashion delivered to you.
                           </p>
                           <div className="flex flex-col gap-3">
                             <Button onClick={close} variant="outline">

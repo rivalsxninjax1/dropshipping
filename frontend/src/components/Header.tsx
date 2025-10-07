@@ -129,8 +129,8 @@ export default function Header() {
             <Link to="/" className="flex items-center gap-2">
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-primary text-[18px] font-bold text-white shadow-glow">ds</span>
               <div className="hidden flex-col leading-tight sm:flex">
-                <span className="font-heading text-lg font-semibold text-neutral-900">Dropshipper</span>
-                <span className="text-xs uppercase tracking-[0.4em] text-neutral-400">Curated Finds</span>
+                <span className="font-heading text-lg font-semibold text-neutral-900">VastraStore</span>
+                <span className="text-xs uppercase tracking-[0.4em] text-neutral-400">Designer's Choice</span>
               </div>
             </Link>
 

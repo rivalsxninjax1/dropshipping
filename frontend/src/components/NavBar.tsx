@@ -9,7 +9,7 @@ export default function NavBar() {
       <div className="mx-auto flex max-w-6xl items-center justify-between p-4">
         <div className="flex items-center gap-3">
           <button className="md:hidden" onClick={() => setOpen(true)} aria-label="Open menu">☰</button>
-          <Link to="/" className="text-xl font-semibold">Dropshipper</Link>
+          <Link to="/" className="text-xl font-semibold">VastraStore</Link>
         </div>
         <ul className="hidden items-center gap-4 md:flex">
           <li><Link to="/">Home</Link></li>
