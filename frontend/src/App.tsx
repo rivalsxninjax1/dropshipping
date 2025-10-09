@@ -1,11 +1,11 @@
 import React, { Suspense, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Header from './components/Header'
 import Footer from './components/Footer'
 import FloatingActions from './components/FloatingActions'
 import ProductQuickView from './components/ProductQuickView'
-import { useCartStore } from './store/cart'
+import RequireRole from './components/guards/RequireRole'
 
 const Home = React.lazy(() => import('./pages/Home'))
 const Category = React.lazy(() => import('./pages/Category'))
@@ -27,6 +27,8 @@ const AdminCoupons = React.lazy(() => import('./pages/Admin/Coupons'))
 const AdminDashboard = React.lazy(() => import('./pages/Admin/Dashboard'))
 const AdminContent = React.lazy(() => import('./pages/Admin/Content'))
 const AdminCampaigns = React.lazy(() => import('./pages/Admin/Campaigns'))
+const AdminUsers = React.lazy(() => import('./pages/Admin/Users'))
+const AdminCategories = React.lazy(() => import('./pages/Admin/Categories'))
 const Search = React.lazy(() => import('./pages/Search'))
 const PaymentSuccess = React.lazy(() => import('./pages/PaymentSuccess'))
 const PaymentFailure = React.lazy(() => import('./pages/PaymentFailure'))
@@ -37,13 +39,19 @@ const DesignSystem = React.lazy(() => import('./pages/design-system'))
 
 const qc = new QueryClient()
 
-export default function App() {
-  const loadCart = useCartStore(s => s.load)
-  useEffect(() => { loadCart() }, [loadCart])
+function ScrollToTop() {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [pathname])
+  return null
+}
 
+export default function App() {
   return (
     <QueryClientProvider client={qc}>
       <BrowserRouter>
+        <ScrollToTop />
         <div className="relative flex min-h-screen flex-col bg-background-50 text-neutral-900">
           <Header />
           <main className="flex-1">
@@ -69,13 +77,21 @@ export default function App() {
                 <Route path="/account/addresses" element={<AccountAddresses />} />
                 <Route path="/account/wishlist" element={<AccountWishlist />} />
                 <Route path="/account/orders" element={<AccountOrders />} />
-                <Route path="/admin/dashboard" element={<AdminDashboard />} />
-                <Route path="/admin/products" element={<AdminProducts />} />
-                <Route path="/admin/suppliers" element={<AdminSuppliers />} />
-                <Route path="/admin/orders" element={<AdminOrders />} />
-                <Route path="/admin/coupons" element={<AdminCoupons />} />
-                <Route path="/admin/content" element={<AdminContent />} />
-                <Route path="/admin/campaigns" element={<AdminCampaigns />} />
+                <Route element={<RequireRole roles={['admin', 'staff']} />}>
+                  <Route path="/admin/dashboard" element={<AdminDashboard />} />
+                  <Route path="/admin/orders" element={<AdminOrders />} />
+                  <Route path="/admin/coupons" element={<AdminCoupons />} />
+                  <Route path="/admin/categories" element={<AdminCategories />} />
+                  <Route path="/admin/content" element={<AdminContent />} />
+                  <Route path="/admin/campaigns" element={<AdminCampaigns />} />
+                  <Route element={<RequireRole roles={['admin']} />}>
+                    <Route path="/admin/suppliers" element={<AdminSuppliers />} />
+                    <Route path="/admin/users" element={<AdminUsers />} />
+                  </Route>
+                </Route>
+                <Route element={<RequireRole roles={['admin', 'staff', 'vendor']} />}>
+                  <Route path="/admin/products" element={<AdminProducts />} />
+                </Route>
                 <Route path="/search" element={<Search />} />
                 <Route path="/design-system" element={<DesignSystem />} />
                 <Route path="*" element={<Navigate to="/" replace />} />

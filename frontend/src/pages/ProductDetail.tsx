@@ -61,6 +61,10 @@ export default function ProductDetail() {
       qc.invalidateQueries({ queryKey: ['cart'] })
       toast.notify(t('actions.addToCart'))
       openCart()
+    },
+    onError: (err: any) => {
+      const detail = err?.response?.data?.detail
+      toast.notify(detail || t('status.error'))
     }
   })
 

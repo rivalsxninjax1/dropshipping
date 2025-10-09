@@ -19,7 +19,14 @@ export default function FloatingActions() {
   const chatOpen = useUIStore(s => s.chatOpen)
   const { data } = useQuery({ queryKey: ['cart'], queryFn: getCart })
   const hydrateItems = useCartStore(s => s.items)
+  const setCartItems = useCartStore(s => s.setItems)
   const badge = (data?.items || hydrateItems).reduce((sum: number, item: any) => sum + (item.quantity || 0), 0)
+
+  useEffect(() => {
+    if (data?.items) {
+      setCartItems(data.items.map(item => ({ productId: item.product.id, quantity: item.quantity })))
+    }
+  }, [data?.items, setCartItems])
 
   useEffect(() => {
     document.body.classList.toggle('chat-open', chatOpen)

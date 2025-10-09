@@ -1,9 +1,10 @@
-import { Fragment } from 'react'
+import { Fragment, useEffect } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { getCart, updateCart, removeFromCart } from '../api'
 import { useUIStore } from '../store/ui'
+import { useCartStore } from '../store/cart'
 import { useCurrencyFormatter } from '../hooks/useCurrencyFormatter'
 import Button from './Button'
 import { TrashIcon, MinusSmallIcon, PlusSmallIcon } from '@heroicons/react/24/outline'
@@ -30,6 +31,7 @@ export default function CartSidebar() {
   const close = useUIStore(s => s.closeCart)
   const { data } = useQuery<CartResponse>({ queryKey: ['cart'], queryFn: getCart })
   const items = data?.items ?? []
+  const setCartStoreItems = useCartStore(s => s.setItems)
   const formatPrice = useCurrencyFormatter()
   const qc = useQueryClient()
 
@@ -86,6 +88,12 @@ export default function CartSidebar() {
   const subtotal = data?.total
     ? Number(data.total)
     : items.reduce((sum: number, item: CartEntry) => sum + Number(item.unit_price) * item.quantity, 0)
+
+  useEffect(() => {
+    if (data?.items) {
+      setCartStoreItems(data.items.map(item => ({ productId: item.product.id, quantity: item.quantity })))
+    }
+  }, [data?.items, setCartStoreItems])
 
   return (
     <Transition.Root show={cartOpen} as={Fragment}>

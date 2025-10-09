@@ -221,3 +221,17 @@ class ContentPageAdmin(admin.ModelAdmin):
     list_filter = ("is_active",)
     search_fields = ("title", "slug")
     prepopulated_fields = {"slug": ("title",)}
+
+
+@admin.register(models.AdminActionLog)
+class AdminActionLogAdmin(admin.ModelAdmin):
+    list_display = ("id", "resource", "action", "actor", "status", "created_at")
+    list_filter = ("resource", "status")
+    search_fields = ("resource", "action", "actor__email", "object_pk")
+    readonly_fields = ("actor", "resource", "action", "object_pk", "changes", "metadata", "status", "ip_address", "created_at")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

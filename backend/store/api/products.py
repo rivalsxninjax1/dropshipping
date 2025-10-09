@@ -5,22 +5,25 @@ from __future__ import annotations
 These views delegate heavy lifting to repositories/services for clarity.
 """
 
-from django.db.models import Count
-from rest_framework import viewsets, mixins
-from rest_framework.permissions import AllowAny, IsAdminUser
-from ..serializers import ProductSerializer, ProductWriteSerializer
-from ..filters import ProductFilter
-from ..repositories.product import ProductRepository
-from ..repositories.product import Product
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.views import APIView
 import csv
 import io
 from decimal import Decimal
+
 from django.utils.text import slugify
-from ..models import Category
-from ..models import Supplier
+from django.db.models import Count, Q
+from rest_framework import mixins, viewsets
+from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from .mixins import AuditedModelViewSet
+from ..filters import ProductFilter
+from ..models import Category, Supplier, User
+from ..permissions import IsStaffOrVendor
+from ..repositories.product import Product, ProductRepository
+from ..serializers import ProductSerializer, ProductWriteSerializer
 from ..tasks import sync_supplier_products
 
 
@@ -56,26 +59,72 @@ class ProductViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.
         return Response(serializer.data)
 
 
-class AdminProductViewSet(viewsets.ModelViewSet):
+class AdminProductViewSet(AuditedModelViewSet):
     """Admin product management with CSV bulk import.
 
     Uses write serializer for create/update and read serializer otherwise.
     """
 
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAuthenticated, IsStaffOrVendor]
     queryset = Product.objects.all().select_related("category", "supplier")
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = getattr(self.request, "user", None)
+        params = getattr(self.request, "query_params", {})
+        if getattr(user, "role", None) == User.Role.VENDOR:
+            supplier = self._resolve_supplier_for_vendor(user)
+            if not supplier:
+                return qs.none()
+            qs = qs.filter(supplier=supplier)
+        search = params.get("q") or params.get("search")
+        if search:
+            qs = qs.filter(Q(title__icontains=search) | Q(sku__icontains=search))
+        supplier_filter = params.get("supplier") or params.get("supplier_id")
+        if supplier_filter:
+            qs = qs.filter(supplier_id=supplier_filter)
+        active_param = params.get("active")
+        if active_param is not None:
+            active_value = str(active_param).lower()
+            if active_value in {"true", "1", "yes"}:
+                qs = qs.filter(active=True)
+            elif active_value in {"false", "0", "no"}:
+                qs = qs.filter(active=False)
+        return qs.order_by("-created_at")
 
     def get_serializer_class(self):
         if self.action in ("create", "update", "partial_update"):
             return ProductWriteSerializer
         return ProductSerializer
 
+    def perform_create(self, serializer):
+        user = getattr(self.request, "user", None)
+        if getattr(user, "role", None) == User.Role.VENDOR:
+            supplier = self._ensure_vendor_supplier(user)
+            serializer.validated_data["supplier"] = supplier
+        super().perform_create(serializer)
+
+    def perform_update(self, serializer):
+        user = getattr(self.request, "user", None)
+        if getattr(user, "role", None) == User.Role.VENDOR:
+            supplier = self._ensure_vendor_supplier(user)
+            serializer.validated_data["supplier"] = supplier
+        super().perform_update(serializer)
+
     @action(detail=False, methods=["post"], url_path="bulk-import")
     def bulk_import(self, request):
+        if getattr(request.user, "role", None) == User.Role.VENDOR:
+            self.log_admin_action(
+                action="bulk_import",
+                status="failure",
+                metadata={"reason": "vendor_not_allowed"},
+            )
+            return Response({"detail": "Bulk import is restricted to staff accounts."}, status=403)
         csv_text = request.data.get("csv")
         if not csv_text and "file" in request.FILES:
             csv_text = request.FILES["file"].read().decode("utf-8")
         if not csv_text:
+            self.log_admin_action(action="bulk_import", status="failure", metadata={"reason": "missing_csv"})
             return Response({"detail": "CSV content required"}, status=400)
 
         reader = csv.DictReader(io.StringIO(csv_text))
@@ -96,6 +145,7 @@ class AdminProductViewSet(viewsets.ModelViewSet):
                 },
             )
             created += 1 if was_created else 0
+        self.log_admin_action(action="bulk_import", metadata={"created": created})
         return Response({"created": created})
 
     @action(detail=False, methods=["post"], url_path="upload-csv")
@@ -109,16 +159,30 @@ class AdminProductViewSet(viewsets.ModelViewSet):
         """
         supplier_id = request.data.get("supplier_id")
         if not supplier_id:
+            self.log_admin_action(action="upload_csv", status="failure", metadata={"reason": "missing_supplier"})
             return Response({"detail": "supplier_id is required"}, status=400)
         try:
             supplier = Supplier.objects.get(id=int(supplier_id))
         except Exception:
+            self.log_admin_action(action="upload_csv", status="failure", metadata={"reason": "supplier_not_found", "supplier_id": supplier_id})
             return Response({"detail": "Supplier not found"}, status=404)
+
+        user = getattr(request, "user", None)
+        if getattr(user, "role", None) == User.Role.VENDOR:
+            vendor_supplier = self._ensure_vendor_supplier(user)
+            if vendor_supplier.id != supplier.id:
+                self.log_admin_action(
+                    action="upload_csv",
+                    status="failure",
+                    metadata={"reason": "supplier_mismatch", "supplier_id": supplier.id},
+                )
+                raise PermissionDenied("You can only upload feeds for your supplier account.")
 
         csv_text = request.data.get("csv")
         if not csv_text and "file" in request.FILES:
             csv_text = request.FILES["file"].read().decode("utf-8")
         if not csv_text:
+            self.log_admin_action(action="upload_csv", status="failure", metadata={"reason": "missing_csv", "supplier_id": supplier.id})
             return Response({"detail": "CSV content required"}, status=400)
 
         creds = supplier.api_credentials or {}
@@ -141,7 +205,24 @@ class AdminProductViewSet(viewsets.ModelViewSet):
 
         # Trigger sync using the generic adapter through the existing task
         sync_supplier_products.delay(supplier.id)
+        self.log_admin_action(
+            action="upload_csv",
+            metadata={"supplier_id": supplier.id, "has_field_map": bool(creds.get("field_map"))},
+        )
         return Response({"ok": True, "message": "CSV uploaded and sync triggered"})
+
+    def _ensure_vendor_supplier(self, user):
+        supplier = self._resolve_supplier_for_vendor(user)
+        if not supplier:
+            self.log_admin_action(action="vendor_scope_violation", status="failure", metadata={"reason": "supplier_missing"})
+            raise PermissionDenied("Your account is not linked to a supplier.")
+        return supplier
+
+    @staticmethod
+    def _resolve_supplier_for_vendor(user):
+        if not getattr(user, "email", None):
+            return None
+        return Supplier.objects.filter(contact_email__iexact=user.email).first()
 
 
 class SearchSuggestionsView(APIView):

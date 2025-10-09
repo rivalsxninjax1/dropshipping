@@ -1,9 +1,11 @@
+import { useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getCart, updateCart, removeFromCart } from '../api'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Button from '../components/Button'
 import { useAuthStore } from '../store/auth'
+import { useCartStore } from '../store/cart'
 import { useCurrencyFormatter } from '../hooks/useCurrencyFormatter'
 
 type CartEntry = {
@@ -27,8 +29,14 @@ export default function Cart() {
   const navigate = useNavigate()
   const location = useLocation()
   const isAuthenticated = !!useAuthStore(s => s.accessToken)
+  const setCartStoreItems = useCartStore(s => s.setItems)
   const { data } = useQuery<CartResponse>({ queryKey: ['cart'], queryFn: getCart })
   const items = data?.items ?? []
+  useEffect(() => {
+    if (data?.items) {
+      setCartStoreItems(data.items.map(item => ({ productId: item.product.id, quantity: item.quantity })))
+    }
+  }, [data?.items, setCartStoreItems])
   const saved = useQuery({ queryKey: ['saved'], queryFn: fetchSavedForLater })
 
   const update = useMutation({

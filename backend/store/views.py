@@ -47,7 +47,7 @@ from .models import (
     ContentPage,
     Wishlist,
 )
-from .permissions import IsAdminOrReadOnly, IsAdmin, IsOwner
+from .permissions import IsAdminOrReadOnly, IsAdmin, IsOwner, user_has_role
 from .serializers import (
     ProductSerializer,
     ProductWriteSerializer,
@@ -67,6 +67,7 @@ from .models import Payment as PaymentModel
 from .tasks import auto_forward_order_to_supplier, sync_supplier_products
 from .metrics import PAYMENT_FAILURES
 from .services.cart import CartService, SavedCartService
+from .services.audit import record_admin_action
 from .emails import send_order_notification
 import requests
 
@@ -249,13 +250,13 @@ class OrdersViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.Upd
 
     def get_queryset(self):
         qs = Order.objects.select_related("user", "shipping_address", "billing_address").prefetch_related("items__product")
-        if self.request.user.is_staff:
+        if user_has_role(self.request.user, {User.Role.ADMIN, User.Role.STAFF}):
             return qs
         return qs.filter(user=self.request.user)
 
     def partial_update(self, request, *args, **kwargs):
         # Only admins can patch status
-        if not request.user.is_staff:
+        if not user_has_role(request.user, {User.Role.ADMIN, User.Role.STAFF}):
             return Response({"detail": "Forbidden"}, status=403)
         return super().partial_update(request, *args, **kwargs)
 
@@ -301,10 +302,22 @@ class CartView(APIView):
         cart = CartService.get(request)
         items = []
         total = Decimal("0.00")
-        for pid, qty in cart.items():
+        pruned = False
+        for pid, qty in list(cart.items()):
             try:
-                p = Product.objects.get(id=pid)
+                p = Product.objects.get(id=pid, is_deleted=False, active=True)
             except Product.DoesNotExist:
+                cart.pop(pid, None)
+                pruned = True
+                continue
+            inv_qty = (
+                Inventory.objects.filter(product_id=pid)
+                .values_list("quantity", flat=True)
+                .first()
+            )
+            if inv_qty is not None and inv_qty <= 0:
+                cart.pop(pid, None)
+                pruned = True
                 continue
             items.append({
                 "product": {"id": p.id, "sku": p.sku, "title": p.title},
@@ -312,6 +325,8 @@ class CartView(APIView):
                 "unit_price": str(p.base_price),
             })
             total += p.base_price * qty
+        if pruned:
+            CartService.set(request, cart)
         resp = Response({"items": items, "total": str(total)})
         if not request.user.is_authenticated and CartService.COOKIE_NAME not in request.COOKIES:
             key = CartService._key(request).split(":", 1)[1]
@@ -320,12 +335,26 @@ class CartView(APIView):
 
     def post(self, request):
         product_id = int(request.data.get("product_id"))
-        quantity = int(request.data.get("quantity", 1))
-        get_object_or_404(Product, id=product_id)
+        quantity = max(1, int(request.data.get("quantity", 1)))
+        product = get_object_or_404(Product, id=product_id, active=True, is_deleted=False)
+        inv = Inventory.objects.filter(product=product).first()
+        available = inv.quantity if inv else 0
+        if available <= 0:
+            return Response({"detail": "Product currently out of stock"}, status=400)
         cart = CartService.get(request)
-        cart[product_id] = cart.get(product_id, 0) + quantity
+        new_qty = cart.get(product_id, 0) + quantity
+        if new_qty > available:
+            return Response({"detail": f"Only {available} units available"}, status=400)
+        cart[product_id] = new_qty
         CartService.set(request, cart)
-        return self.get(request)
+        # Ensure guest users receive a durable cart cookie even when their first
+        # interaction is a write (POST), not a read (GET). This prevents cart
+        # loss on login because the merge relies on the cookie key.
+        resp = self.get(request)
+        if not request.user.is_authenticated and CartService.COOKIE_NAME not in request.COOKIES:
+            key = CartService._key(request).split(":", 1)[1]
+            resp.set_cookie(CartService.COOKIE_NAME, key, max_age=60 * 60 * 24 * 30)
+        return resp
 
     def patch(self, request):
         product_id = int(request.data.get("product_id"))
@@ -334,16 +363,32 @@ class CartView(APIView):
         if quantity <= 0:
             cart.pop(product_id, None)
         else:
+            inv = Inventory.objects.filter(product_id=product_id).first()
+            available = inv.quantity if inv else 0
+            if available <= 0:
+                cart.pop(product_id, None)
+                CartService.set(request, cart)
+                return Response({"detail": "Product currently out of stock"}, status=400)
+            if quantity > available:
+                return Response({"detail": f"Only {available} units available"}, status=400)
             cart[product_id] = quantity
         CartService.set(request, cart)
-        return self.get(request)
+        resp = self.get(request)
+        if not request.user.is_authenticated and CartService.COOKIE_NAME not in request.COOKIES:
+            key = CartService._key(request).split(":", 1)[1]
+            resp.set_cookie(CartService.COOKIE_NAME, key, max_age=60 * 60 * 24 * 30)
+        return resp
 
     def delete(self, request):
         product_id = int(request.data.get("product_id"))
         cart = CartService.get(request)
         cart.pop(product_id, None)
         CartService.set(request, cart)
-        return self.get(request)
+        resp = self.get(request)
+        if not request.user.is_authenticated and CartService.COOKIE_NAME not in request.COOKIES:
+            key = CartService._key(request).split(":", 1)[1]
+            resp.set_cookie(CartService.COOKIE_NAME, key, max_age=60 * 60 * 24 * 30)
+        return resp
 
 
 class CartSaveForLaterView(APIView):
@@ -465,6 +510,23 @@ class CheckoutView(APIView):
 
         total = Decimal("0.00")
         max_shipping_days = 0
+
+        # First pass: lock and validate inventory before creating the Order record
+        locked = []
+        for pid, qty in list(cart.items()):
+            product = get_object_or_404(Product, id=pid, is_deleted=False, active=True)
+            inv, _ = Inventory.objects.get_or_create(product=product, defaults={"quantity": 0})
+            inv = Inventory.objects.select_for_update().get(pk=inv.pk)
+            if inv.quantity < qty:
+                cart.pop(pid, None)
+                CartService.set(request, cart)
+                message = "Product currently out of stock" if inv.quantity <= 0 else f"Only {inv.quantity} units available for {product.sku}"
+                return Response({"detail": message}, status=400)
+            locked.append((product, inv, qty))
+
+        if not locked:
+            return Response({"detail": "Cart is empty"}, status=400)
+
         order = Order.objects.create(
             user=user,
             status=Order.Status.PENDING,
@@ -474,16 +536,6 @@ class CheckoutView(APIView):
             billing_address_id=billing_address_id,
             shipping_method=request.data.get("shipping_method", "Standard"),
         )
-
-        # First pass: lock and validate
-        locked = []
-        for pid, qty in cart.items():
-            product = get_object_or_404(Product, id=pid)
-            inv, _ = Inventory.objects.get_or_create(product=product, defaults={"quantity": 0})
-            inv = Inventory.objects.select_for_update().get(pk=inv.pk)
-            if inv.quantity < qty:
-                return Response({"detail": f"Insufficient inventory for {product.sku}"}, status=400)
-            locked.append((product, inv, qty))
 
         # Second pass: create items and deduct
         for product, inv, qty in locked:
@@ -829,16 +881,57 @@ class PaymentRefundView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk: int):
-        if not request.user.is_staff:
+        if not user_has_role(request.user, {User.Role.ADMIN, User.Role.STAFF}):
+            record_admin_action(
+                actor=request.user,
+                request=request,
+                resource="payment",
+                action="refund",
+                object_pk=str(pk),
+                status="failure",
+                metadata={"reason": "forbidden"},
+            )
             return Response({"detail": "Forbidden"}, status=403)
         payment = get_object_or_404(PaymentModel, pk=pk)
         gateway = get_gateway(payment.provider)
-        res = gateway.handle_refund(payment.order, request.data.get("amount") or payment.amount)
+        amount = request.data.get("amount") or payment.amount
+        try:
+            res = gateway.handle_refund(payment.order, amount)
+        except NotImplementedError:
+            record_admin_action(
+                actor=request.user,
+                request=request,
+                resource="payment",
+                action="refund",
+                object_pk=str(payment.pk),
+                status="failure",
+                metadata={"reason": "not_supported", "provider": payment.provider},
+            )
+            return Response({"detail": "Refund not supported for this provider."}, status=400)
+        except Exception as exc:  # noqa: broad-except
+            record_admin_action(
+                actor=request.user,
+                request=request,
+                resource="payment",
+                action="refund",
+                object_pk=str(payment.pk),
+                status="failure",
+                metadata={"error": str(exc)},
+            )
+            return Response({"detail": "Refund request failed", "error": str(exc)}, status=500)
         payment.status = PaymentModel.Status.REFUNDED
         payment.raw_response = {**(payment.raw_response or {}), "refund": res}
         payment.save(update_fields=["status", "raw_response"])
         payment.order.status = Order.Status.REFUNDED
         payment.order.save(update_fields=["status"])
+        record_admin_action(
+            actor=request.user,
+            request=request,
+            resource="payment",
+            action="refund",
+            object_pk=str(payment.pk),
+            metadata={"amount": str(amount), "provider": payment.provider},
+        )
         return Response({"ok": True, "refund": res})
 
 

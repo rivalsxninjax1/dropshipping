@@ -1,6 +1,8 @@
 from decimal import Decimal
+
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser, BaseUserManager
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
@@ -35,9 +37,10 @@ class UserManager(BaseUserManager):
 
 class User(AbstractUser):
     class Role(models.TextChoices):
-        CUSTOMER = "customer", "Customer"
         ADMIN = "admin", "Admin"
-        SUPPLIER = "supplier", "Supplier"
+        STAFF = "staff", "Staff"
+        CUSTOMER = "customer", "Customer"
+        VENDOR = "vendor", "Vendor"
 
     username = None  # remove username
     email = models.EmailField(unique=True)
@@ -245,6 +248,41 @@ class Bundle(models.Model):
         if price < Decimal("0.00"):
             price = Decimal("0.00")
         return price.quantize(Decimal("0.01"))
+
+
+class AdminActionLog(models.Model):
+    """Immutable audit trail for privileged dashboard operations."""
+
+    class Status(models.TextChoices):
+        SUCCESS = "success", "Success"
+        FAILURE = "failure", "Failure"
+
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="admin_actions",
+    )
+    resource = models.CharField(max_length=120)
+    action = models.CharField(max_length=120)
+    object_pk = models.CharField(max_length=64, blank=True)
+    changes = models.JSONField(default=dict, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.SUCCESS)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["resource", "action"]),
+            models.Index(fields=["created_at"]),
+        ]
+
+    def __str__(self):
+        actor = self.actor.email if self.actor else "system"
+        return f"{self.resource}:{self.action} by {actor} at {self.created_at:%Y-%m-%d %H:%M:%S}"
 
 
 class BundleItem(models.Model):

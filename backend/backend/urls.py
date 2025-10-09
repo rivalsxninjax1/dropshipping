@@ -15,6 +15,14 @@ schema_view = get_schema_view(
     permission_classes=(permissions.AllowAny,),
 )
 
+
+def _superuser_only(request):
+    user = getattr(request, "user", None)
+    return bool(user and user.is_active and user.is_superuser)
+
+
+admin.site.has_permission = _superuser_only
+
 urlpatterns = [
     # Friendly root response for humans and uptime checks
     path("", lambda r: JsonResponse({

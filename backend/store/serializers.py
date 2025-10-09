@@ -23,6 +23,7 @@ from .models import (
     BundleItem,
     SizeGuide,
     ContentPage,
+    AdminActionLog,
 )
 
 
@@ -375,6 +376,64 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["id", "email", "first_name", "last_name", "phone", "role", "is_active", "is_staff"]
+
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    last_login = serializers.DateTimeField(read_only=True)
+    date_joined = serializers.DateTimeField(read_only=True)
+    is_staff = serializers.BooleanField(read_only=True)
+    is_superuser = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "email",
+            "first_name",
+            "last_name",
+            "phone",
+            "role",
+            "is_active",
+            "is_staff",
+            "is_superuser",
+            "last_login",
+            "date_joined",
+        ]
+
+    def update(self, instance, validated_data):
+        role = validated_data.get("role", instance.role)
+        instance = super().update(instance, validated_data)
+        updates = []
+        should_be_staff = role in (User.Role.ADMIN, User.Role.STAFF)
+        if instance.is_staff != should_be_staff:
+            instance.is_staff = should_be_staff
+            updates.append("is_staff")
+        if role != User.Role.ADMIN and instance.is_superuser:
+            instance.is_superuser = False
+            updates.append("is_superuser")
+        if updates:
+            instance.save(update_fields=updates)
+        return instance
+
+
+class AdminActionLogSerializer(serializers.ModelSerializer):
+    actor_email = serializers.EmailField(source="actor.email", read_only=True)
+
+    class Meta:
+        model = AdminActionLog
+        fields = [
+            "id",
+            "resource",
+            "action",
+            "object_pk",
+            "status",
+            "actor_email",
+            "metadata",
+            "changes",
+            "ip_address",
+            "created_at",
+        ]
+        read_only_fields = fields
 
 
 class RegisterSerializer(serializers.ModelSerializer):

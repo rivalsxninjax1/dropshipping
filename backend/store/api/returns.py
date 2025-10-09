@@ -1,10 +1,11 @@
-from rest_framework import mixins, status, viewsets
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
-from rest_framework.response import Response
-from rest_framework.decorators import action
 from django.shortcuts import get_object_or_404
+from rest_framework import mixins, status, viewsets
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
-from store.models import ReturnRequest, OrderItem, Order
+from store.models import Order, OrderItem, ReturnRequest, User
+from store.permissions import IsStaff, user_has_role
 from store.serializers import ReturnRequestSerializer
 
 
@@ -20,7 +21,7 @@ class ReturnRequestViewSet(
 
     def get_queryset(self):
         qs = ReturnRequest.objects.select_related("order", "order_item")
-        if not self.request.user.is_staff:
+        if not user_has_role(self.request.user, {User.Role.ADMIN, User.Role.STAFF}):
             qs = qs.filter(order__user=self.request.user)
         return qs.order_by("-created_at")
 
@@ -33,11 +34,11 @@ class ReturnRequestViewSet(
         serializer.save(order=order, order_item=order_item)
 
     def update(self, request, *args, **kwargs):
-        if not request.user.is_staff:
+        if not user_has_role(request.user, {User.Role.ADMIN, User.Role.STAFF}):
             return Response({"detail": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
         return super().update(request, *args, **kwargs)
 
-    @action(detail=True, methods=["post"], permission_classes=[IsAdminUser])
+    @action(detail=True, methods=["post"], permission_classes=[IsStaff])
     def set_status(self, request, pk=None):
         obj = self.get_object()
         status_value = request.data.get("status")

@@ -21,8 +21,18 @@ export async function updateAdminOrder(id: number, payload: Record<string, unkno
   return data
 }
 
+export async function refundAdminOrder(id: number, payload: Record<string, unknown> = {}) {
+  const { data } = await api.post(`/admin/orders/${id}/refund/`, payload)
+  return data
+}
+
 export async function fetchAdminProducts(params: Record<string, unknown> = {}) {
   const { data } = await api.get('/admin/products/', { params })
+  return data
+}
+
+export async function createAdminProduct(payload: FormData | Record<string, unknown>) {
+  const { data } = await api.post('/admin/products/', payload)
   return data
 }
 
@@ -101,5 +111,20 @@ export async function fetchAdminPages() {
 
 export async function updateAdminPage(id: number, payload: Partial<ContentPage>) {
   const { data } = await api.patch(`/admin/pages/${id}/`, payload)
+  return data
+}
+
+export async function fetchAdminUsers(params: Record<string, unknown> = {}) {
+  const { data } = await api.get('/admin/users/', { params })
+  return data
+}
+
+export async function updateAdminUser(id: number, payload: Record<string, unknown>) {
+  const { data } = await api.patch(`/admin/users/${id}/`, payload)
+  return data
+}
+
+export async function fetchAdminActionLogs(params: Record<string, unknown> = {}) {
+  const { data } = await api.get('/admin/logs/', { params })
   return data
 }

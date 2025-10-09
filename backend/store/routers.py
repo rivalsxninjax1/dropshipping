@@ -15,6 +15,8 @@ from .api import (
     AdminCategoryViewSet,
     AdminBundleViewSet,
     AdminContentPageViewSet,
+    AdminUserViewSet,
+    AdminActionLogViewSet,
     AdminMetricsView,
     AdminLowStockView,
     WishlistViewSet,
@@ -59,6 +61,8 @@ admin_router.register(r"coupons", AdminCouponViewSet, basename="admin-coupons")
 admin_router.register(r"categories", AdminCategoryViewSet, basename="admin-categories")
 admin_router.register(r"bundles", AdminBundleViewSet, basename="admin-bundles")
 admin_router.register(r"pages", AdminContentPageViewSet, basename="admin-pages")
+admin_router.register(r"users", AdminUserViewSet, basename="admin-users")
+admin_router.register(r"logs", AdminActionLogViewSet, basename="admin-logs")
 
 
 api_urlpatterns = [

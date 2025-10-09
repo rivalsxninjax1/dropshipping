@@ -4,10 +4,11 @@ from django.db.models import Count
 from django.utils import timezone
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from store.models import Coupon, CouponRedemption
+from store.models import Coupon, CouponRedemption, User
+from store.permissions import IsStaff, user_has_role
 from store.serializers import CouponSerializer
 
 
@@ -17,14 +18,18 @@ class CouponViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.G
 
     def get_permissions(self):
         if self.action in ("create", "update", "partial_update", "destroy"):
-            return [IsAdminUser()]
+            return [IsStaff()]
         if self.action == "validate":
             return [AllowAny()]
         return [IsAuthenticated()]
 
     def get_queryset(self):
         qs = Coupon.objects.all()
-        if self.action in ("list", "retrieve", "validate") and not self.request.user.is_staff:
+        user = getattr(getattr(self, "request", None), "user", None)
+        if self.action in ("list", "retrieve", "validate") and not user_has_role(
+            user,
+            {User.Role.ADMIN, User.Role.STAFF},
+        ):
             qs = qs.filter(is_active=True)
         return qs
 

@@ -44,6 +44,31 @@ class Command(BaseCommand):
         admin_user.save()
         users.append(admin_user)
 
+        staff_user, _ = User.objects.get_or_create(
+            email="staff@example.com",
+            defaults={
+                "role": User.Role.STAFF,
+                "is_staff": True,
+            },
+        )
+        if not staff_user.has_usable_password():
+            staff_user.set_password("staff123")
+        staff_user.is_staff = True
+        staff_user.is_superuser = False
+        staff_user.save()
+        users.append(staff_user)
+
+        vendor_user, _ = User.objects.get_or_create(
+            email="vendor@example.com",
+            defaults={
+                "role": User.Role.VENDOR,
+            },
+        )
+        if not vendor_user.has_usable_password():
+            vendor_user.set_password("vendor123")
+            vendor_user.save(update_fields=["password"])
+        users.append(vendor_user)
+
         for i in range(20):
             email = f"user{i}@example.com"
             user, _ = User.objects.get_or_create(email=email, defaults={
@@ -57,8 +82,9 @@ class Command(BaseCommand):
         # Suppliers
         suppliers = []
         for i in range(5):
+            contact_email = "vendor@example.com" if i == 0 else f"supplier{i+1}@example.com"
             supplier, _ = Supplier.objects.get_or_create(name=f"Supplier {i+1}", defaults={
-                "contact_email": f"supplier{i+1}@example.com",
+                "contact_email": contact_email,
                 "active": True,
             })
             suppliers.append(supplier)

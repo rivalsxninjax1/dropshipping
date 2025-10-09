@@ -20,6 +20,8 @@ from .admin import (  # noqa: F401
     AdminCategoryViewSet,
     AdminBundleViewSet,
     AdminContentPageViewSet,
+    AdminUserViewSet,
+    AdminActionLogViewSet,
 )
 
 # Re-export legacy views until they are refactored

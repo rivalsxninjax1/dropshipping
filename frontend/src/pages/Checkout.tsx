@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { checkout, fetchAddresses, getCart, login as apiLogin, register as apiRegister } from '../api'
+import { checkout, fetchAddresses, getCart, login as apiLogin, register as apiRegister, mergeCart } from '../api'
 import AddressForm from '../components/inputs/AddressForm'
 import Button from '../components/Button'
 import { track } from '../analytics'
@@ -8,6 +8,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useToast } from '../components/Toast'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore, type AuthUser } from '../store/auth'
+import { useCartStore } from '../store/cart'
 import { useCurrencyFormatter } from '../hooks/useCurrencyFormatter'
 
 function Spinner({ className = 'h-5 w-5 text-white' }) {
@@ -361,12 +362,19 @@ function AccountStep({ mode, setMode, values, onChange, onSuccess, setTokens }: 
   const { t } = useTranslation()
   const toast = useToast()
   const qc = useQueryClient()
+  const setCartStoreItems = useCartStore(s => s.setItems)
   const loginMutation = useMutation({
     mutationFn: () => apiLogin(values.email, values.password),
     onSuccess: async (res) => {
       setTokens(res.access, res.refresh, res.user)
       toast.notify(t('actions.login'))
-      await qc.invalidateQueries()
+      try {
+        await mergeCart()
+        const cartData = await getCart()
+        qc.setQueryData(['cart'], cartData)
+        setCartStoreItems((cartData.items ?? []).map(item => ({ productId: item.product.id, quantity: item.quantity })))
+      } catch {}
+      await qc.invalidateQueries({ queryKey: ['saved'] })
       onSuccess()
     },
     onError: () => toast.notify(t('status.error')),
@@ -381,7 +389,13 @@ function AccountStep({ mode, setMode, values, onChange, onSuccess, setTokens }: 
     onSuccess: async (res) => {
       setTokens(res.access, res.refresh, res.user)
       toast.notify(t('checkout.guest.createAccount'))
-      await qc.invalidateQueries()
+      try {
+        await mergeCart()
+        const cartData = await getCart()
+        qc.setQueryData(['cart'], cartData)
+        setCartStoreItems((cartData.items ?? []).map(item => ({ productId: item.product.id, quantity: item.quantity })))
+      } catch {}
+      await qc.invalidateQueries({ queryKey: ['saved'] })
       onSuccess()
     },
     onError: () => toast.notify(t('status.error')),

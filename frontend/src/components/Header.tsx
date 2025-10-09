@@ -74,10 +74,17 @@ export default function Header() {
 
   const openCart = useUIStore(s => s.openCart)
   const cartStoreItems = useCartStore(s => s.items)
+  const setCartStoreItems = useCartStore(s => s.setItems)
+  const clearCartStore = useCartStore(s => s.clear)
 
   const qc = useQueryClient()
   const { data } = useQuery({ queryKey: ['cart'], queryFn: getCart })
   const cartItems = useMemo(() => data?.items ?? [], [data?.items])
+  useEffect(() => {
+    if (data?.items) {
+      setCartStoreItems(data.items.map(item => ({ productId: item.product.id, quantity: item.quantity })))
+    }
+  }, [data?.items, setCartStoreItems])
   const cartCount = useMemo(
     () => (cartItems.length ? cartItems : cartStoreItems).reduce((total, item: any) => total + (item.quantity || 0), 0),
     [cartItems, cartStoreItems]
@@ -104,6 +111,7 @@ export default function Header() {
       await clearCart()
       qc.setQueryData(['cart'], { items: [], total: '0.00' })
     } catch {}
+    clearCartStore()
     logout()
     navigate('/')
   }

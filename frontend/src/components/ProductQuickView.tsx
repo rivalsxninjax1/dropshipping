@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
 import { useUIStore } from '../store/ui'
 import Button from './Button'
@@ -24,10 +24,20 @@ export default function ProductQuickView() {
       toast.notify(t('actions.addToCart'))
       close()
     },
-    onError: () => toast.notify(t('status.error')),
+    onError: (err: any) => {
+      const detail = err?.response?.data?.detail
+      toast.notify(detail || t('status.error'))
+    },
   })
 
   const displayPrice = product ? formatUsdAsNpr(product.base_price, i18n.language) : ''
+
+  // Reset quantity whenever a new product is opened to avoid persisting previous counts.
+  useEffect(() => {
+    if (product) {
+      setQty(1)
+    }
+  }, [product?.id])
 
   return (
     <Transition.Root show={Boolean(product)} as={Fragment}>
